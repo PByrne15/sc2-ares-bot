@@ -11,13 +11,12 @@ from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import Bot, Computer
 
-sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 import yaml
 
-from bot.main import MyBot
+from bot.main import WilldZergBot
 from ladder import run_ladder_game
 
 plt = platform.system()
@@ -44,8 +43,8 @@ MY_BOT_RACE: str = "MyBotRace"
 
 
 def main():
-    bot_name: str = "MyBot"
-    race: Race = Race.Random
+    bot_name: str = "WilldZergBot"
+    race: Race = Race.Zerg
 
     __user_config_location__: str = path.abspath(".")
     user_config_path: str = path.join(__user_config_location__, CONFIG_FILE)
@@ -58,7 +57,7 @@ def main():
             if MY_BOT_RACE in config:
                 race = Race[config[MY_BOT_RACE].title()]
 
-    bot1 = Bot(race, MyBot(), bot_name)
+    bot1 = Bot(race, WilldZergBot(), bot_name)
 
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
@@ -73,7 +72,8 @@ def main():
             if p.is_file()
         ]
         if len(map_list) == 0:
-            logger.error(f"Can't find maps, please check `MAPS_PATH` in `run.py'")
+            logger.error(
+                f"Can't find maps, please check `MAPS_PATH` in `run.py'")
             logger.info("Trying back up option")
             logger.info(
                 f"\nLooking for maps in {MAPS_PATH} but didn't find anything. \n"
@@ -98,7 +98,8 @@ def main():
             maps.get(random.choice(map_list)),
             [
                 bot1,
-                Computer(random_race, Difficulty.CheatVision, ai_build=AIBuild.Macro),
+                Computer(random_race, Difficulty.CheatInsane,
+                         ai_build=AIBuild.Macro),
             ],
             realtime=False,
         )
