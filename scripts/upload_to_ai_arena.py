@@ -27,12 +27,14 @@ def get_bot_description() -> str:
     By default, attempts to get bot name from config
     and generate a basic description.
     """
-    bot_name: str = "MyBot"
+    bot_name: str = "WilldZergBot"
     if name := retrieve_value_from_config(MY_BOT_NAME):
         bot_name = name
 
     return (
         f"# {bot_name}\n\n" "Made with [ares-sc2](https://github.com/AresSC2/ares-sc2)"
+        "\n\nMy first attempt at building a bot. Currently just an experiment to see how far it's"
+        "possible to push things when only using zerglings to attack with."
     )
 
 
@@ -60,11 +62,13 @@ if __name__ == "__main__":
 
     else:
         logger.info("Uploading bot")
-        bot_zip_public = retrieve_value_from_config(BOT_ZIP_PUBLICLY_DOWNLOADABLE)
+        bot_zip_public = retrieve_value_from_config(
+            BOT_ZIP_PUBLICLY_DOWNLOADABLE)
         if bot_zip_public is None:
             bot_zip_public = False
 
-        bot_data_public = retrieve_value_from_config(BOT_DATA_PUBLICLY_DOWNLOADABLE)
+        bot_data_public = retrieve_value_from_config(
+            BOT_DATA_PUBLICLY_DOWNLOADABLE)
         if bot_data_public is None:
             bot_data_public = False
 

@@ -7,7 +7,7 @@ MyBotName: WilldZerg
 MyBotRace: Zerg
 # setting true allows auto upload to aiareana (https://aiarena.net/) on push to `main` branch
 # see tutorial on readme before setting to True
-AutoUploadToAiarena: False
+AutoUploadToAiarena: True
 BotZipPubliclyDownloadable: False
 BotDataPubliclyDownloadable: False
 BotDataEnabled: True
