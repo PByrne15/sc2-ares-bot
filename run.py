@@ -93,6 +93,9 @@ def main():
             ]
 
         random_race = random.choice([Race.Zerg, Race.Terran, Race.Protoss])
+        # random_race = random.choice([Race.Terran])
+        # random_race = random.choice([Race.Zerg])
+        # random_race = random.choice([Race.Protoss])
         print("Starting local game...")
         run_game(
             maps.get(random.choice(map_list)),
