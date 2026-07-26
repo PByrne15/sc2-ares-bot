@@ -15,7 +15,8 @@ from ares.behaviors.macro import (
     Mining,
     BuildWorkers,
     SpawnController,
-    MacroPlan
+    MacroPlan,
+    TechUp
 )
 
 from .expansion_controller import FixedExpansionController
@@ -37,6 +38,7 @@ class WilldZergBot(AresBot):
 
         self.attacks = 0
         self.trigger_attack = False
+        self.upgrades_started = False
 
         self.completed_researches = set()
 
@@ -44,7 +46,7 @@ class WilldZergBot(AresBot):
 
     def select_target(self) -> Point2:
         if self.enemy_structures:
-            return random.choice(self.enemy_structures).position
+            return self.enemy_structures.closest_to(self.townhalls.first.position).position
         return self.enemy_start_locations[0]
 
     async def on_step(self, iteration: int) -> None:
@@ -58,18 +60,19 @@ class WilldZergBot(AresBot):
 
         if self.trigger_attack:
             self.attacks += 1
+            target = self.select_target()
             for ling in self.units(UnitTypeId.ZERGLING):
                 if ling.is_idle:
-                    ling.attack(self.select_target())
+                    ling.attack(target)
             self.trigger_attack = False
             await self.chat_send(f"Sending timing attack number {self.attacks}", True)
 
         if self.supply_used == 200 and self.attacks >= 2:
+            target = self.select_target()
+            if target == self.enemy_start_locations[0]:
+                target = random.choice(self.expansion_locations_list)
             for ling in self.units(UnitTypeId.ZERGLING):
                 if ling.is_idle:
-                    target = self.select_target()
-                    if target == self.enemy_start_locations[0]:
-                        target = random.choice(self.expansion_locations_list)
                     ling.attack(target)
             self.trigger_attack = False
 
@@ -109,11 +112,12 @@ class WilldZergBot(AresBot):
                                    3 * self.supply_used // 4, 80),
                                22)
 
-        if self.supply_workers >= worker_count:
-            macro_plan.add(SpawnController(army_composition_dict={
-                UnitTypeId.ZERGLING: {"proportion": 1.0, "priority": 0}}))
-        else:
-            macro_plan.add(BuildWorkers(to_count=worker_count))
+        if (self.attacks == 0 or self.townhalls.amount >= 3):
+            if self.supply_workers >= worker_count:
+                macro_plan.add(SpawnController(army_composition_dict={
+                    UnitTypeId.ZERGLING: {"proportion": 1.0, "priority": 0}}))
+            else:
+                macro_plan.add(BuildWorkers(to_count=worker_count))
 
         if (self.can_afford(UpgradeId.ZERGLINGMOVEMENTSPEED)
             and self.already_pending(UnitTypeId.LAIR) == 0.0
@@ -122,35 +126,39 @@ class WilldZergBot(AresBot):
             if sp:
                 self.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
 
-        if self.can_afford(UnitTypeId.LAIR) and (
-                self.structures(UnitTypeId.LAIR).amount +
-                self.structures(UnitTypeId.HIVE).amount +
-                self.already_pending(UnitTypeId.LAIR) +
-                self.already_pending(UnitTypeId.HIVE)
-        ) < 1 and hq and (
-            self.already_pending_upgrade(
-                UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
-            and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
-        ) and self.structures(UnitTypeId.SPAWNINGPOOL).ready:
-            await self.chat_send("Upgrading to Lair")
-            hq.build(UnitTypeId.LAIR)
+        if (self.already_pending_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
+                and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
+                and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+            ):
+            # await self.chat_send("Upgrading to Lair", True)
+            self.register_behavior(
+                TechUp(base_location=hq.position, desired_tech=UnitTypeId.LAIR))
 
         queens = self.units(UnitTypeId.QUEEN)
         for base in self.townhalls:
-            if not queens or self.units(UnitTypeId.QUEEN).closest_distance_to(base) > 10:
+            if not queens or self.units(UnitTypeId.QUEEN).closest_distance_to(base) > 5:
                 if (self.can_afford(UnitTypeId.QUEEN)
-                            and base.is_ready
-                            and base.is_idle
-                            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                        ):
-                    # await self.chat_send("Training Queen")
+                        and base.is_ready
+                        and base.is_idle
+                        and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+                        and (queens.amount < 1 or self.upgrades_started)
+                    ):
+                    # await self.chat_send("Training Queen", True)
                     base.train(UnitTypeId.QUEEN)
             else:
                 queen = queens.closest_to(base)
                 if queen.energy >= 25:
                     queen(AbilityId.EFFECT_INJECTLARVA, base)
 
-        if self.attacks and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches:
+        if (self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1)
+            and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1)
+            ):
+            self.upgrades_started = True
+
+        if (self.attacks
+            and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
+            and self.townhalls.amount >= 3
+            ):
             self.register_behavior(GasBuildingController(to_count=2))
             self.register_behavior(BuildStructure(
                 base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
@@ -166,19 +174,13 @@ class WilldZergBot(AresBot):
                         if (self.can_afford(research)
                             and not research in self.completed_researches
                                 and self.already_pending_upgrade(research) == 0):
-                            await self.chat_send(f"Researching {research}")
+                            await self.chat_send(f"Researching {research}", True)
                             evo.research(research)
                             break
 
         if UpgradeId.ZERGMELEEWEAPONSLEVEL1 in self.completed_researches:
-            self.register_behavior(BuildStructure(
-                base_location=hq.position, structure_id=UnitTypeId.INFESTATIONPIT, to_count=1))
-            if (self.can_afford(UnitTypeId.HIVE)
-                and self.structures(UnitTypeId.HIVE).amount +
-                    self.already_pending(UnitTypeId.HIVE) < 1):
-                if hq:
-                    # await self.chat_send("Upgrading to Hive")
-                    hq.build(UnitTypeId.HIVE)
+            self.register_behavior(
+                TechUp(base_location=hq.position, desired_tech=UnitTypeId.HIVE))
 
             researches = [
                 UpgradeId.ZERGMELEEWEAPONSLEVEL2,
@@ -192,7 +194,7 @@ class WilldZergBot(AresBot):
                         if (self.can_afford(research)
                             and not research in self.completed_researches
                                 and self.already_pending_upgrade(research) == 0):
-                            await self.chat_send(f"Researching {research}")
+                            await self.chat_send(f"Researching {research}", True)
                             evo.research(research)
                             break
 
@@ -202,11 +204,22 @@ class WilldZergBot(AresBot):
                     sp.ready.first.research(UpgradeId.ZERGLINGATTACKSPEED)
 
         if self.time < 900:
+            if self.minerals > 1000:
+                max_pending = 10
+            else:
+                max_pending = 2
             self.register_behavior(
-                FixedExpansionController(to_count=8, max_pending=2))
+                FixedExpansionController(to_count=8, max_pending=max_pending))
         else:
             self.register_behavior(
                 FixedExpansionController(to_count=20, max_pending=10))
+
+        if self.minerals > 2000:
+            self.register_behavior(BuildStructure(
+                base_location=random.choice(self.townhalls).position,
+                structure_id=UnitTypeId.HATCHERY,
+                to_count=15,
+                max_on_route=1))
 
         self.register_behavior(macro_plan)
 

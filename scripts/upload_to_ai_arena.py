@@ -33,7 +33,7 @@ def get_bot_description() -> str:
 
     return (
         f"# {bot_name}\n\n" "Made with [ares-sc2](https://github.com/AresSC2/ares-sc2)"
-        "\n\nMy first attempt at building a bot. Currently just an experiment to see how far it's"
+        "\n\nMy first attempt at building a bot. Currently just an experiment to see how far it's "
         "possible to push things when only using zerglings to attack with."
     )
 
