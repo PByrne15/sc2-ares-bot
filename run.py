@@ -92,17 +92,20 @@ def main():
                 "UltraloveAIE_v2",
             ]
 
-        random_race = random.choice([Race.Zerg, Race.Terran, Race.Protoss])
-        # random_race = random.choice([Race.Terran])
-        # random_race = random.choice([Race.Zerg])
-        # random_race = random.choice([Race.Protoss])
+        random_race = random.choice(list(Race))
+        # random_race = Race.Terran
+        # random_race = Race.Zerg
+        # random_race = Race.Protoss
+        # build = random.choice(list(AIBuild))
+        build = AIBuild.Rush
+
         print("Starting local game...")
         run_game(
             maps.get(random.choice(map_list)),
             [
                 bot1,
                 Computer(random_race, Difficulty.CheatInsane,
-                         ai_build=AIBuild.Macro),
+                         ai_build=build),
             ],
             realtime=False,
         )

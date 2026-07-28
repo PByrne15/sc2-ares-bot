@@ -1,6 +1,7 @@
 import math
 import random
 
+from cython_extensions.general_utils import cy_unit_pending
 from cython_extensions.units_utils import cy_closest_to, cy_find_units_center_mass
 import numpy as np
 
@@ -61,7 +62,7 @@ class WilldZergBot(AresBot):
 
         self.attacks = 0
         self.trigger_attack_time = -200
-        self.final_upgrades_started = False
+        self.under_attack_timer = 0
 
         natural_expansion_location = min(
             self.mediator.get_own_expansions, key=lambda t: t[1])[0]
@@ -74,8 +75,6 @@ class WilldZergBot(AresBot):
         self.expansion_entrance = path[10]
 
         self.completed_researches = set()
-
-        self.count = 0
 
     def _position_facing_enemy_base(self, point: Point2):
         path = self.mediator.get_map_data_object.pathfind(
@@ -96,17 +95,23 @@ class WilldZergBot(AresBot):
         This code runs continually throughout the game
         Populate this function with whatever your bot should do!
         """
-        self.count += 1
-        await self._macro()
-        await self._combat_decisions()
 
-    async def _macro(self) -> None:
+        await self._macro(bool(self.under_attack_timer))
+        await self._combat_decisions()
+        if self.under_attack_timer:
+            # if self.under_attack_timer == 100:
+            #     print(f"Under attack @ {self.actual_iteration}")
+            self.under_attack_timer -= 1
+
+    async def _macro(self, under_attack: bool) -> None:
         macro_plan = MacroPlan()
         workers_per_gas = 3
-        if (self.final_upgrades_started
-            or (self.minerals < 100 and self.vespene > 300)
+        if ((self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL3)
+             and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
+             )
+                or (self.minerals < 100 and self.vespene > 300)
             ):
-            workers_per_gas = 0
+            workers_per_gas = 1
         self.register_behavior(
             Mining(mineral_boost=True, workers_per_gas=workers_per_gas))
 
@@ -150,11 +155,9 @@ class WilldZergBot(AresBot):
                                16 * int(math.log(self.supply_used)),
                                80)
 
-        # if not self.actual_iteration % 100:
-        #     print(f"{worker_count=}")
-
-        if (self.attacks == 0 or self.townhalls.amount >= 3):
-            if self.supply_workers >= worker_count:
+        # After first attack stop production until we have 3 hatcheries
+        if self.attacks != 1 or self.townhalls.amount >= 3:
+            if self.supply_workers >= worker_count or under_attack:
                 macro_plan.add(SpawnController(army_composition_dict={
                     UnitTypeId.ZERGLING: {"proportion": 1.0, "priority": 0}}))
             else:
@@ -170,7 +173,7 @@ class WilldZergBot(AresBot):
         if (self.already_pending_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
                 and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
                 and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                ):
+            ):
             # await self.chat_send("Upgrading to Lair", True)
             self.register_behavior(
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.LAIR))
@@ -191,16 +194,11 @@ class WilldZergBot(AresBot):
                 if queen.energy >= 25:
                     queen(AbilityId.EFFECT_INJECTLARVA, base)
 
-        if (self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL3)
-                    and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
-                ):
-            self.final_upgrades_started = True
-
         if (self.attacks
-            and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
-            and self.townhalls.amount >= 3
-            and (self.units(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) >= 3)
-            ):
+                and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
+                and self.townhalls.amount >= 3
+                and (self.units(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) >= 3)
+                ):
             self.register_behavior(GasBuildingController(to_count=2))
             self.register_behavior(BuildStructure(
                 base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
@@ -227,6 +225,9 @@ class WilldZergBot(AresBot):
         if UpgradeId.ZERGMELEEWEAPONSLEVEL1 in self.completed_researches:
             self.register_behavior(
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.HIVE))
+            self.register_behavior(BuildStructure(
+                base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
+            self._spawn_overseers(UnitRole.DEFENDING, 1)
 
             researches = [
                 UpgradeId.ZERGMELEEWEAPONSLEVEL2,
@@ -275,28 +276,38 @@ class WilldZergBot(AresBot):
 
         self.register_behavior(macro_plan)
 
-    def decide_attack_target(self, combat_sim_result: EngagementResult, unit: Unit, enemy_units: Units) -> Point2:
+    def _decide_attack_target(self, combat_sim_result: EngagementResult, unit: Unit, enemy_units: Units) -> Point2:
         enemy_structures: Units = self.enemy_structures
         current_target = unit.order_target
 
         if (enemy_units
-                    and combat_sim_result in VICTORY_CLOSE_OR_BETTER
-                    and (isinstance(current_target, Point2) and not current_target.distance_to(unit) < 3.0)
-                ):
+            and combat_sim_result in VICTORY_CLOSE_OR_BETTER
+            and (isinstance(current_target, Point2) and not current_target.distance_to(unit) < 3.0)
+            ):
             return enemy_units.closest_to(unit).position
         elif enemy_structures:
             return cy_closest_to(unit.position, enemy_structures).position
         elif (isinstance(current_target, Point2)
-              and unit.position.distance_to(current_target) < 1
-              ):
-            return random.choice(self.expansion_locations_list)
-        elif (isinstance(current_target, Point2)
               and current_target in self.expansion_locations_list
-              and current_target != self.enemy_start_locations[0]
               ):
             return current_target
+        elif self.is_visible(self.enemy_start_locations[0]):
+            return random.choice(self.expansion_locations_list)
         else:
             return self.enemy_start_locations[0]
+
+    def _spawn_overseers(self, role: UnitRole, max_count: int) -> None:
+        if self.mediator.get_units_from_role(
+            role=role, unit_type=set(
+                (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.OVERLORDCOCOON))
+        ).amount < max_count and self.can_afford(UnitTypeId.OVERSEER):
+            print(
+                f"Spawning overseer for role {role} @ {self.actual_iteration}")
+            overlord = self.units(UnitTypeId.OVERLORD).closest_to(
+                self.start_location)
+            overlord(AbilityId.MORPH_OVERSEER, subtract_cost=True)
+            self.mediator.assign_role(
+                tag=overlord.tag, role=role)
 
     async def _attack_behaviour(self) -> None:
         ground_grid: np.ndarray = self.mediator.get_ground_grid
@@ -310,20 +321,28 @@ class WilldZergBot(AresBot):
             await self.chat_send(f"Sending timing attack number {self.attacks}", True)
 
         if self.supply_used == 200 and self.attacks >= 2:
+            self.register_behavior(
+                UpgradeController([UpgradeId.OVERLORDSPEED], base_location=self.structures(
+                    UnitTypeId.HIVE).first.position)
+            )
+
+            self._spawn_overseers(UnitRole.ATTACKING_MAIN_SQUAD, 2)
+
             lings = self.mediator.get_units_from_role(
-                role=UnitRole.DEFENDING)
+                role=UnitRole.DEFENDING, unit_type=UnitTypeId.ZERGLING)
             self.mediator.batch_assign_role(
                 tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
 
         attackers: Units = self.mediator.get_units_from_role(
             role=UnitRole.ATTACKING_MAIN_SQUAD)
-        enemy_units: Units = self.enemy_units.filter(
+
+        com, _ = cy_find_units_center_mass(attackers, 20)
+
+        enemy_units: Units = self.enemy_units.closer_than(30, Point2(com)).filter(
             lambda u: not u.is_flying
             and not u.is_cloaked
-            and not u.is_burrowed
             and not u.is_hallucination
             and not u.type_id in COMMON_UNIT_IGNORE_TYPES
-            and not u.type_id in BURROWED_ALIAS
             and u.can_be_attacked
         )
         combat_sim_result: EngagementResult = self.mediator.can_win_fight(
@@ -332,15 +351,21 @@ class WilldZergBot(AresBot):
 
         for attacker in attackers:
             maneuver: CombatManeuver = CombatManeuver()
-            nearby_friendlies = attackers.closer_than(20, attacker).amount
-            nearby_enemies = enemy_units.closer_than(10, attacker).filter(
-                lambda u: not u.type_id in self.WORKER_TYPES).amount
+            if enemy_units.closer_than(10, attacker):
+                nearby_friendlies = attackers.closer_than(
+                    20, enemy_units.closest_to(attacker)
+                ).amount
+                nearby_enemies = attackers.closer_than(
+                    10, enemy_units.closest_to(attacker)).filter(
+                    lambda u: not u.type_id in self.WORKER_TYPES).amount
+            else:
+                nearby_enemies = nearby_friendlies = 0
             if (combat_sim_result in LOSS_MARGINAL_OR_WORSE
-                    and attackers.amount < 120
-                    and nearby_enemies * 2 > nearby_friendlies
-                ):
+                        and attackers.amount < 120
+                        and nearby_enemies * 2 > nearby_friendlies
+                    ):
                 maneuver.add(KeepUnitSafe(attacker, ground_grid))
-            target: Point2 = self.decide_attack_target(
+            target: Point2 = self._decide_attack_target(
                 combat_sim_result, attacker, enemy_units)
             maneuver.add(AMove(unit=attacker, target=target))
 
@@ -359,8 +384,23 @@ class WilldZergBot(AresBot):
             defend_point = self._position_facing_enemy_base(self.townhalls.closest_to(
                 self.enemy_start_locations[0]).position)
 
-        maneuver: CombatManeuver = CombatManeuver()
-        close_units: Units = self.enemy_units.closer_than(40, defend_point)
+        close_units: Units = self.enemy_units.in_distance_of_group(
+            self.townhalls, 40).filter(
+            lambda u: not u.is_flying
+            and not u.is_cloaked
+            and not u.is_hallucination
+            and not u.type_id in COMMON_UNIT_IGNORE_TYPES
+            and u.can_be_attacked
+        )
+
+        if not close_units:
+            for defender in defenders:
+                maneuver: CombatManeuver = CombatManeuver()
+                maneuver.add(AMove(
+                    unit=defender, target=defend_point))
+                self.register_behavior(maneuver)
+            return
+
         combat_sim_result: EngagementResult = self.mediator.can_win_fight(
             own_units=defenders, enemy_units=close_units
         )
@@ -375,19 +415,20 @@ class WilldZergBot(AresBot):
                 tags=set(a.tag for a in attackers), role=UnitRole.DEFENDING)
         for defender in defenders:
             maneuver: CombatManeuver = CombatManeuver()
-            if combat_sim_result in LOSS_MARGINAL_OR_WORSE:
+            nearby_friendlies = defenders.closer_than(
+                20, close_units.closest_to(defender)
+            ).amount
+            nearby_enemies = close_units.closer_than(
+                10, close_units.closest_to(defender)).amount
+            if ((combat_sim_result in LOSS_MARGINAL_OR_WORSE or
+                 defender.position.distance_to_closest(self.townhalls) > 40)
+                    and nearby_enemies * 2 > nearby_friendlies):
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
             elif close_units:
                 defend_point = close_units.closest_to(defender).position
             maneuver.add(AMove(
                 unit=defender, target=defend_point))
             self.register_behavior(maneuver)
-        # if combat_sim_result in LOSS_MARGINAL_OR_WORSE:
-        #     maneuver.add(KeepGroupSafe(
-        #         defenders, close_enemy=[], grid=ground_grid))
-        # maneuver.add(AMoveGroup(defenders, set(
-        #     u.tag for u in defenders), defend_point))
-        # self.register_behavior(maneuver)
 
     async def _combat_decisions(self) -> None:
         await self._attack_behaviour()
@@ -412,17 +453,16 @@ class WilldZergBot(AresBot):
         if unit.type_id == UnitTypeId.ZERGLING:
             self.mediator.assign_role(tag=unit.tag, role=UnitRole.DEFENDING)
 
-            # custom on_unit_created logic here ...
-        #
-        # async def on_unit_destroyed(self, unit_tag: int) -> None:
-        #     await super(MyBot, self).on_unit_destroyed(unit_tag)
-        #
-        #     # custom on_unit_destroyed logic here ...
-        #
-        # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float) -> None:
-        #     await super(MyBot, self).on_unit_took_damage(unit, amount_damage_taken)
-        #
-        #     # custom on_unit_took_damage logic here ...
+    # async def on_unit_destroyed(self, unit_tag: int) -> None:
+    #     await super(MyBot, self).on_unit_destroyed(unit_tag)
+    #
+    #     # custom on_unit_destroyed logic here ...
+
+    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float) -> None:
+        await super(WilldZergBot, self).on_unit_took_damage(unit, amount_damage_taken)
+
+        if any(unit.position.distance_to(th) <= 10 for th in self.townhalls):
+            self.under_attack_timer = 100
 
     async def on_upgrade_complete(self, upgrade: UpgradeId) -> None:
         await super(WilldZergBot, self).on_upgrade_complete(upgrade)
