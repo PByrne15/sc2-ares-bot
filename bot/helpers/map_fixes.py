@@ -19,6 +19,8 @@ def apply_map_fixes(ai: "WilldZergBot"):
     }
 
     map_name = ai.game_info.map_name
-    FIXES[map_name](ai)
-
     print(map_name)
+    if map_name not in FIXES:
+        return
+
+    FIXES[map_name](ai)
