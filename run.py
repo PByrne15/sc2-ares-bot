@@ -92,12 +92,14 @@ def main():
                 "UltraloveAIE_v2",
             ]
 
-        random_race = random.choice(list(Race))
+        # random_race = random.choice(list(Race))
         # random_race = Race.Terran
-        # random_race = Race.Zerg
+        random_race = Race.Zerg
         # random_race = Race.Protoss
         # build = random.choice(list(AIBuild))
         build = AIBuild.Rush
+
+        # map_list = ["LeyLinesAIE_v3"]
 
         print("Starting local game...")
         run_game(

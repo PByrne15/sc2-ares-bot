@@ -8,6 +8,7 @@ import numpy as np
 from ares import AresBot
 from ares.consts import (
     BURROWED_ALIAS,
+    CHANGELING_TYPES,
     COMMON_UNIT_IGNORE_TYPES,
     LOSS_MARGINAL_OR_WORSE,
     VICTORY_CLOSE_OR_BETTER,
@@ -44,6 +45,8 @@ from ares.behaviors.combat.group import (
 )
 
 from .expansion_controller import FixedExpansionController
+from .managers import ScoutManager
+from .helpers.map_fixes import apply_map_fixes
 
 
 class WilldZergBot(AresBot):
@@ -52,7 +55,10 @@ class WilldZergBot(AresBot):
     def __init__(self):
         super().__init__()
 
+        self.scout_manager = ScoutManager(self)
+
     async def on_start(self) -> None:
+        apply_map_fixes(self)
         await super(WilldZergBot, self).on_start()
         """
         This code runs once at the start of the game
@@ -73,8 +79,10 @@ class WilldZergBot(AresBot):
         assert path
 
         self.expansion_entrance = path[10]
+        self.defend_point: Point2 = self.expansion_entrance
+        self.attacker_com: Point2 = self.expansion_entrance
 
-        self.completed_researches = set()
+        self.completed_researches: set[UpgradeId] = set()
 
     def _position_facing_enemy_base(self, point: Point2):
         path = self.mediator.get_map_data_object.pathfind(
@@ -82,6 +90,9 @@ class WilldZergBot(AresBot):
         )
         if not path:
             return self.expansion_entrance
+        if len(path) < 10:
+            return path[-1]
+
         return path[10]
 
     def select_target(self) -> Point2:
@@ -95,22 +106,27 @@ class WilldZergBot(AresBot):
         This code runs continually throughout the game
         Populate this function with whatever your bot should do!
         """
+        if (self.time == 270):
+            self.scout_manager.scout_for_natural()
+        if self.supply_workers >= 35 and not self.scout_manager.enemy_nat_taken:
+            self.under_attack_timer = 1
+        self.scout_manager.update()
 
         await self._macro(bool(self.under_attack_timer))
         await self._combat_decisions()
         if self.under_attack_timer:
             # if self.under_attack_timer == 100:
-            #     print(f"Under attack @ {self.actual_iteration}")
+            #     print(f"Under attack @ {self.time_formatted}")
             self.under_attack_timer -= 1
 
     async def _macro(self, under_attack: bool) -> None:
         macro_plan = MacroPlan()
         workers_per_gas = 3
         if ((self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL3)
-             and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
-             )
+                 and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
+                 )
                 or (self.minerals < 100 and self.vespene > 300)
-            ):
+                ):
             workers_per_gas = 1
         self.register_behavior(
             Mining(mineral_boost=True, workers_per_gas=workers_per_gas))
@@ -135,7 +151,7 @@ class WilldZergBot(AresBot):
         if (self.structures(UnitTypeId.SPAWNINGPOOL) and self.supply_used == 14
                 and (self.units(UnitTypeId.OVERLORD).amount + self.already_pending(UnitTypeId.OVERLORD)) < 2
                 and self.can_afford(UnitTypeId.OVERLORD)
-            ):
+                ):
             self.larva.first.build(UnitTypeId.OVERLORD)
         elif self.structures(UnitTypeId.SPAWNINGPOOL).ready:
             macro_plan.add(AutoSupply(base_location=self.start_location))
@@ -173,7 +189,7 @@ class WilldZergBot(AresBot):
         if (self.already_pending_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
                 and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
                 and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-            ):
+                ):
             # await self.chat_send("Upgrading to Lair", True)
             self.register_behavior(
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.LAIR))
@@ -182,11 +198,11 @@ class WilldZergBot(AresBot):
         for base in self.townhalls:
             if not queens or self.units(UnitTypeId.QUEEN).closest_distance_to(base) > 8:
                 if (self.can_afford(UnitTypeId.QUEEN)
-                    and base.is_ready
-                    and base.is_idle
-                    and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                    and queens.amount < 10
-                    ):
+                            and base.is_ready
+                            and base.is_idle
+                            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+                            and queens.amount < 10
+                        ):
                     # await self.chat_send("Training Queen", True)
                     base.train(UnitTypeId.QUEEN)
             else:
@@ -195,10 +211,10 @@ class WilldZergBot(AresBot):
                     queen(AbilityId.EFFECT_INJECTLARVA, base)
 
         if (self.attacks
-                and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
-                and self.townhalls.amount >= 3
-                and (self.units(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) >= 3)
-                ):
+            and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
+            and self.townhalls.amount >= 3
+            and (self.units(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) >= 3)
+            ):
             self.register_behavior(GasBuildingController(to_count=2))
             self.register_behavior(BuildStructure(
                 base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
@@ -227,7 +243,6 @@ class WilldZergBot(AresBot):
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.HIVE))
             self.register_behavior(BuildStructure(
                 base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
-            self._spawn_overseers(UnitRole.DEFENDING, 1)
 
             researches = [
                 UpgradeId.ZERGMELEEWEAPONSLEVEL2,
@@ -276,15 +291,17 @@ class WilldZergBot(AresBot):
 
         self.register_behavior(macro_plan)
 
-    def _decide_attack_target(self, combat_sim_result: EngagementResult, unit: Unit, enemy_units: Units) -> Point2:
+    def _decide_attack_target(self, combat_sim_result: EngagementResult, unit: Unit, enemy_units: Units) -> Point2 | Unit:
         enemy_structures: Units = self.enemy_structures
         current_target = unit.order_target
 
+        closest_unit = enemy_units.closest_to(unit) if enemy_units else None
+
         if (enemy_units
-            and combat_sim_result in VICTORY_CLOSE_OR_BETTER
-            and (isinstance(current_target, Point2) and not current_target.distance_to(unit) < 3.0)
-            ):
-            return enemy_units.closest_to(unit).position
+                    and combat_sim_result in VICTORY_CLOSE_OR_BETTER
+                    and (isinstance(current_target, Point2) and not current_target.distance_to(unit) < 3.0)
+                ) and (not closest_unit.is_burrowed or closest_unit.type_id in [UnitTypeId.WIDOWMINEBURROWED]):
+            return closest_unit.position
         elif enemy_structures:
             return cy_closest_to(unit.position, enemy_structures).position
         elif (isinstance(current_target, Point2)
@@ -296,19 +313,6 @@ class WilldZergBot(AresBot):
         else:
             return self.enemy_start_locations[0]
 
-    def _spawn_overseers(self, role: UnitRole, max_count: int) -> None:
-        if self.mediator.get_units_from_role(
-            role=role, unit_type=set(
-                (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.OVERLORDCOCOON))
-        ).amount < max_count and self.can_afford(UnitTypeId.OVERSEER):
-            print(
-                f"Spawning overseer for role {role} @ {self.actual_iteration}")
-            overlord = self.units(UnitTypeId.OVERLORD).closest_to(
-                self.start_location)
-            overlord(AbilityId.MORPH_OVERSEER, subtract_cost=True)
-            self.mediator.assign_role(
-                tag=overlord.tag, role=role)
-
     async def _attack_behaviour(self) -> None:
         ground_grid: np.ndarray = self.mediator.get_ground_grid
         if self.actual_iteration == self.trigger_attack_time + 100:
@@ -316,17 +320,17 @@ class WilldZergBot(AresBot):
             self.mediator.batch_assign_role(
                 tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
 
-            print(f"{self.mediator.get_units_from_role(
-                role=UnitRole.ATTACKING_MAIN_SQUAD).amount=}")
+            print(
+                f"Sending attack number {self.attacks} with {lings.amount} lings @ {self.time_formatted}")
             await self.chat_send(f"Sending timing attack number {self.attacks}", True)
+
+        self.game_data
 
         if self.supply_used == 200 and self.attacks >= 2:
             self.register_behavior(
-                UpgradeController([UpgradeId.OVERLORDSPEED], base_location=self.structures(
-                    UnitTypeId.HIVE).first.position)
+                UpgradeController([UpgradeId.OVERLORDSPEED],
+                                  base_location=self.townhalls.first.position)
             )
-
-            self._spawn_overseers(UnitRole.ATTACKING_MAIN_SQUAD, 2)
 
             lings = self.mediator.get_units_from_role(
                 role=UnitRole.DEFENDING, unit_type=UnitTypeId.ZERGLING)
@@ -336,15 +340,25 @@ class WilldZergBot(AresBot):
         attackers: Units = self.mediator.get_units_from_role(
             role=UnitRole.ATTACKING_MAIN_SQUAD)
 
-        com, _ = cy_find_units_center_mass(attackers, 20)
+        if not attackers:
+            self.attacker_com = self.defend_point
 
-        enemy_units: Units = self.enemy_units.closer_than(30, Point2(com)).filter(
+            return
+
+        com, _ = cy_find_units_center_mass(attackers, 20)
+        self.attacker_com = Point2(com)
+
+        enemy_units: Units = self.enemy_units.closer_than(30, Point2(self.attacker_com)).filter(
             lambda u: not u.is_flying
             and not u.is_cloaked
             and not u.is_hallucination
             and not u.type_id in COMMON_UNIT_IGNORE_TYPES
             and u.can_be_attacked
         )
+
+        if not self.actual_iteration % 50 and self.time > 720:
+            print(enemy_units)
+
         combat_sim_result: EngagementResult = self.mediator.can_win_fight(
             own_units=attackers, enemy_units=enemy_units, workers_do_no_damage=True
         )
@@ -355,17 +369,18 @@ class WilldZergBot(AresBot):
                 nearby_friendlies = attackers.closer_than(
                     20, enemy_units.closest_to(attacker)
                 ).amount
-                nearby_enemies = attackers.closer_than(
+                nearby_enemies = enemy_units.closer_than(
                     10, enemy_units.closest_to(attacker)).filter(
                     lambda u: not u.type_id in self.WORKER_TYPES).amount
+
             else:
                 nearby_enemies = nearby_friendlies = 0
             if (combat_sim_result in LOSS_MARGINAL_OR_WORSE
-                        and attackers.amount < 120
-                        and nearby_enemies * 2 > nearby_friendlies
-                    ):
+                    and attackers.amount < 120
+                    and nearby_enemies * 2 > nearby_friendlies
+                ):
                 maneuver.add(KeepUnitSafe(attacker, ground_grid))
-            target: Point2 = self._decide_attack_target(
+            target: Point2 | Unit = self._decide_attack_target(
                 combat_sim_result, attacker, enemy_units)
             maneuver.add(AMove(unit=attacker, target=target))
 
@@ -375,13 +390,13 @@ class WilldZergBot(AresBot):
         ground_grid: np.ndarray = self.mediator.get_ground_grid
         defenders: Units = self.mediator.get_units_from_role(
             role=UnitRole.DEFENDING)
-        defend_point: Point2
+        self.defend_point: Point2
         if not self.townhalls:
-            defend_point = self.start_location
+            self.defend_point = self.start_location
         elif self.townhalls.amount < 3:
-            defend_point = self.expansion_entrance
+            self.defend_point = self.expansion_entrance
         else:
-            defend_point = self._position_facing_enemy_base(self.townhalls.closest_to(
+            self.defend_point = self._position_facing_enemy_base(self.townhalls.closest_to(
                 self.enemy_start_locations[0]).position)
 
         close_units: Units = self.enemy_units.in_distance_of_group(
@@ -397,7 +412,7 @@ class WilldZergBot(AresBot):
             for defender in defenders:
                 maneuver: CombatManeuver = CombatManeuver()
                 maneuver.add(AMove(
-                    unit=defender, target=defend_point))
+                    unit=defender, target=self.defend_point))
                 self.register_behavior(maneuver)
             return
 
@@ -407,12 +422,13 @@ class WilldZergBot(AresBot):
         attackers = self.mediator.get_units_from_role(
             role=UnitRole.ATTACKING_MAIN_SQUAD)
         if (attackers
-            and defenders.amount >= 10
-            and combat_sim_result in [EngagementResult.LOSS_MARGINAL, EngagementResult.LOSS_CLOSE]
-            ):
+                    and defenders.amount >= 10
+                    and combat_sim_result in [EngagementResult.LOSS_MARGINAL, EngagementResult.LOSS_CLOSE]
+                ):
             print("Setting attackers to defend")
             self.mediator.batch_assign_role(
                 tags=set(a.tag for a in attackers), role=UnitRole.DEFENDING)
+
         for defender in defenders:
             maneuver: CombatManeuver = CombatManeuver()
             nearby_friendlies = defenders.closer_than(
@@ -425,9 +441,12 @@ class WilldZergBot(AresBot):
                     and nearby_enemies * 2 > nearby_friendlies):
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
             elif close_units:
-                defend_point = close_units.closest_to(defender).position
+                if defender.position.distance_to_closest(self.townhalls) > 40:
+                    print(
+                        f"{combat_sim_result=}, {nearby_enemies=}, {nearby_friendlies=}")
+                self.defend_point = close_units.closest_to(defender).position
             maneuver.add(AMove(
-                unit=defender, target=defend_point))
+                unit=defender, target=self.defend_point))
             self.register_behavior(maneuver)
 
     async def _combat_decisions(self) -> None:

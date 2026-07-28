@@ -27,7 +27,10 @@ class FixedExpansionController(ExpansionController):
                 or not mediator.can_place_structure(
                     position=location, structure_type=ai.base_townhall_type
                 )
+                or location not in ai.expansion_locations_list
             ):
+                if location not in ai.expansion_locations_list:
+                    print(f"Skipping {location} because not in expansion list")
                 continue
 
             return location
