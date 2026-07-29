@@ -109,6 +109,7 @@ class WilldZergBot(AresBot):
         if (self.time == 270):
             self.scout_manager.scout_for_natural()
         if self.supply_workers >= 35 and not self.scout_manager.enemy_nat_taken:
+            await self.chat_send("Cutting workers as no natural scouted")
             self.under_attack_timer = 1
         self.scout_manager.update()
 
@@ -399,18 +400,23 @@ class WilldZergBot(AresBot):
             self.defend_point = self._position_facing_enemy_base(self.townhalls.closest_to(
                 self.enemy_start_locations[0]).position)
 
-        close_units: Units = self.enemy_units.in_distance_of_group(
-            self.townhalls, 40).filter(
-            lambda u: not u.is_flying
-            and not u.is_cloaked
-            and not u.is_hallucination
-            and not u.type_id in COMMON_UNIT_IGNORE_TYPES
-            and u.can_be_attacked
-        )
+        if self.townhalls:
+            close_units: Units = self.enemy_units.in_distance_of_group(
+                self.townhalls, 40).filter(
+                lambda u: not u.is_flying
+                and not u.is_cloaked
+                and not u.is_hallucination
+                and not u.type_id in COMMON_UNIT_IGNORE_TYPES
+                and u.can_be_attacked
+            )
+        else:
+            # We've almost certainly lost so just have some behaviour to not crash
+            close_units = self.enemy_units
 
         if not close_units:
             for defender in defenders:
                 maneuver: CombatManeuver = CombatManeuver()
+                maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
                 maneuver.add(AMove(
                     unit=defender, target=self.defend_point))
                 self.register_behavior(maneuver)
