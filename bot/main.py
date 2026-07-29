@@ -179,7 +179,7 @@ class WilldZergBot(AresBot):
             worker_count = 14
 
         # After first attack stop production until we have 3 hatcheries
-        if self.attacks != 1 or self.townhalls.amount >= 3:
+        if self.attacks != 1 or self.townhalls.amount >= 3 or under_attack:
             if self.supply_workers >= worker_count or under_attack:
                 macro_plan.add(SpawnController(army_composition_dict={
                     UnitTypeId.ZERGLING: {"proportion": 1.0, "priority": 0}}))
