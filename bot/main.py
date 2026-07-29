@@ -109,7 +109,9 @@ class WilldZergBot(AresBot):
         if (self.time == 270):
             self.scout_manager.scout_for_natural()
         if self.supply_workers >= 35 and not self.scout_manager.enemy_nat_taken:
-            await self.chat_send("Cutting workers as no natural scouted")
+            if not self.actual_iteration % 50:
+                print(
+                    f"Cutting workers as no natural scouted @ {self.time_formatted}")
             self.under_attack_timer = 1
         self.scout_manager.update()
 
@@ -124,10 +126,10 @@ class WilldZergBot(AresBot):
         macro_plan = MacroPlan()
         workers_per_gas = 3
         if ((self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL3)
-                 and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
-                 )
-                or (self.minerals < 100 and self.vespene > 300)
-                ):
+             and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
+             )
+            or (self.minerals < 100 and self.vespene > 300)
+            ):
             workers_per_gas = 1
         self.register_behavior(
             Mining(mineral_boost=True, workers_per_gas=workers_per_gas))
@@ -150,27 +152,31 @@ class WilldZergBot(AresBot):
             ))
 
         if (self.structures(UnitTypeId.SPAWNINGPOOL) and self.supply_used == 14
-                and (self.units(UnitTypeId.OVERLORD).amount + self.already_pending(UnitTypeId.OVERLORD)) < 2
-                and self.can_afford(UnitTypeId.OVERLORD)
-                ):
+            and (self.units(UnitTypeId.OVERLORD).amount + self.already_pending(UnitTypeId.OVERLORD)) < 2
+            and self.can_afford(UnitTypeId.OVERLORD)
+            ):
             self.larva.first.build(UnitTypeId.OVERLORD)
         elif self.structures(UnitTypeId.SPAWNINGPOOL).ready:
             macro_plan.add(AutoSupply(base_location=self.start_location))
 
-        if not self.structures(UnitTypeId.SPAWNINGPOOL):
+        try:
+            if not self.structures(UnitTypeId.SPAWNINGPOOL):
+                worker_count = 14
+            elif not self.attacks:
+                worker_count = 16
+            elif self.attacks == 1:
+                worker_count = min(self.supply_used -
+                                   2 * int(math.log(self.supply_used)) -
+                                   self.units(UnitTypeId.QUEEN).amount * 2,
+                                   self.townhalls.amount * 19,
+                                   64)
+            else:
+                worker_count = min(self.supply_used -
+                                   16 * int(math.log(self.supply_used)),
+                                   80)
+        except ValueError:
+            # We have already lost at this point but catch this to avoid crashing
             worker_count = 14
-        elif not self.attacks:
-            worker_count = 16
-        elif self.attacks == 1:
-            worker_count = min(self.supply_used -
-                               2 * int(math.log(self.supply_used)) -
-                               self.units(UnitTypeId.QUEEN).amount * 2,
-                               self.townhalls.amount * 19,
-                               64)
-        else:
-            worker_count = min(self.supply_used -
-                               16 * int(math.log(self.supply_used)),
-                               80)
 
         # After first attack stop production until we have 3 hatcheries
         if self.attacks != 1 or self.townhalls.amount >= 3:
@@ -188,9 +194,9 @@ class WilldZergBot(AresBot):
                 self.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
 
         if (self.already_pending_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
-                and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
-                and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                ):
+            and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
+            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+            ):
             # await self.chat_send("Upgrading to Lair", True)
             self.register_behavior(
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.LAIR))
@@ -199,11 +205,11 @@ class WilldZergBot(AresBot):
         for base in self.townhalls:
             if not queens or self.units(UnitTypeId.QUEEN).closest_distance_to(base) > 8:
                 if (self.can_afford(UnitTypeId.QUEEN)
-                            and base.is_ready
-                            and base.is_idle
-                            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                            and queens.amount < 10
-                        ):
+                    and base.is_ready
+                    and base.is_idle
+                    and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+                    and queens.amount < 10
+                    ):
                     # await self.chat_send("Training Queen", True)
                     base.train(UnitTypeId.QUEEN)
             else:
@@ -299,9 +305,9 @@ class WilldZergBot(AresBot):
         closest_unit = enemy_units.closest_to(unit) if enemy_units else None
 
         if (enemy_units
-                    and combat_sim_result in VICTORY_CLOSE_OR_BETTER
-                    and (isinstance(current_target, Point2) and not current_target.distance_to(unit) < 3.0)
-                ) and (not closest_unit.is_burrowed or closest_unit.type_id in [UnitTypeId.WIDOWMINEBURROWED]):
+            and combat_sim_result in VICTORY_CLOSE_OR_BETTER
+            ) and closest_unit and (not closest_unit.is_burrowed
+                                    or closest_unit.type_id in [UnitTypeId.WIDOWMINEBURROWED]):
             return closest_unit.position
         elif enemy_structures:
             return cy_closest_to(unit.position, enemy_structures).position
@@ -377,8 +383,8 @@ class WilldZergBot(AresBot):
             else:
                 nearby_enemies = nearby_friendlies = 0
             if (combat_sim_result in LOSS_MARGINAL_OR_WORSE
-                    and attackers.amount < 120
-                    and nearby_enemies * 2 > nearby_friendlies
+                and attackers.amount < 120
+                and nearby_enemies * 2 > nearby_friendlies
                 ):
                 maneuver.add(KeepUnitSafe(attacker, ground_grid))
             target: Point2 | Unit = self._decide_attack_target(
@@ -428,9 +434,9 @@ class WilldZergBot(AresBot):
         attackers = self.mediator.get_units_from_role(
             role=UnitRole.ATTACKING_MAIN_SQUAD)
         if (attackers
-                    and defenders.amount >= 10
-                    and combat_sim_result in [EngagementResult.LOSS_MARGINAL, EngagementResult.LOSS_CLOSE]
-                ):
+            and defenders.amount >= 10
+            and combat_sim_result in [EngagementResult.LOSS_MARGINAL, EngagementResult.LOSS_CLOSE]
+            ):
             print("Setting attackers to defend")
             self.mediator.batch_assign_role(
                 tags=set(a.tag for a in attackers), role=UnitRole.DEFENDING)
@@ -447,9 +453,9 @@ class WilldZergBot(AresBot):
                     and nearby_enemies * 2 > nearby_friendlies):
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
             elif close_units:
-                if defender.position.distance_to_closest(self.townhalls) > 40:
-                    print(
-                        f"{combat_sim_result=}, {nearby_enemies=}, {nearby_friendlies=}")
+                # if defender.position.distance_to_closest(self.townhalls) > 40:
+                #     print(
+                #         f"{combat_sim_result=}, {nearby_enemies=}, {nearby_friendlies=}")
                 self.defend_point = close_units.closest_to(defender).position
             maneuver.add(AMove(
                 unit=defender, target=self.defend_point))

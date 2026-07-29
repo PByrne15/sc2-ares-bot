@@ -43,6 +43,8 @@ class ScoutManager:
         self._enemy_nat_taken: bool = False
 
         self._nat_scout_unit: int = 0
+        self._nat_scout_attempts = 0
+        self._scouted_lack_of_natural = False
 
     def update(self) -> None:
         if self._first_iteration:
@@ -86,32 +88,61 @@ class ScoutManager:
 
     def _scout_for_natural(self) -> None:
         enemy_nat = self.ai.mediator.get_enemy_nat
-        if self.ai.is_visible(enemy_nat) or self.enemy_nat_taken:
+        if self.enemy_nat_taken:
             if scouting_unit := self.ai.unit_tag_dict.get(self._nat_scout_unit):
                 if scouting_unit.type_id == UnitTypeId.OVERLORD:
                     self.ai.mediator.assign_role(
                         tag=scouting_unit.tag, role=UnitRole.SCOUTING)
 
+            print(f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {len(
+                [IS_CARRYING_MINERALS in worker.buffs for worker
+                 in self.ai.enemy_units(WORKER_TYPES).closer_than(
+                     10, self.ai.mediator.get_enemy_nat)]
+            )} @ {self.ai.time_formatted}")
+
             self._scouting_natural = False
             return
+
+        if self.ai.is_visible(enemy_nat):
+            # Successfully scouted a lack of natural so add an extra retry when the unit is killed
+            self._scouted_lack_of_natural = True
 
         if not self._nat_scout_unit:
             if scout_ols := self.ai.mediator.get_units_from_role(
                     role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD):
                 self._nat_scout_unit = scout_ols.first.tag
-                self.ai.mediator.assign_role(
-                    tag=scout_ols.first.tag, role=UnitRole.CONTROL_GROUP_ONE)
-            elif scout_ling := self.ai.units(UnitTypeId.ZERGLING).first:
-                self._nat_scout_unit = scout_ling.tag
+            elif scout_ling := self.ai.mediator.get_units_from_roles(
+                    roles=(UnitRole.DEFENDING, UnitRole.ATTACKING_MAIN_SQUAD), unit_type=UnitTypeId.ZERGLING):
+                self._nat_scout_unit = scout_ling.first.tag
             else:
                 # No units available to scout with, try again next time
+                if not self.ai.actual_iteration % 10:
+                    print(
+                        f"No units available to scout with  @ {self.ai.time_formatted}")
                 return
+
+            self.ai.mediator.assign_role(
+                tag=self._nat_scout_unit, role=UnitRole.CONTROL_GROUP_ONE)
 
         if scouting_unit := self.ai.unit_tag_dict.get(self._nat_scout_unit):
             scouting_unit.move(enemy_nat)
         else:
-            # Scouting unit must have died, give up
-            self._scouting_natural = False
+            # Scouting unit must have died
+            self._nat_scout_unit = 0
+            self._nat_scout_attempts += 1
+
+            # If the scout saw no natural, don't count this attempt
+            if self._scouted_lack_of_natural:
+                self._scouted_lack_of_natural = False
+                self._nat_scout_attempts -= 1
+            print(
+                f"Scouting unit died, attempts =  {self._nat_scout_attempts} @ {self.ai.time_formatted}")
+
+            # If the scout died without reaching the nat a few times
+            # then we will assume it has been taken
+            if self._nat_scout_attempts >= 3:
+                self._scouting_natural = False
+                self._enemy_nat_taken = True
 
     def _defending_overseer(self) -> None:
         if UpgradeId.ZERGMELEEWEAPONSLEVEL1 in self.ai.completed_researches:
