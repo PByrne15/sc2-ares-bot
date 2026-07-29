@@ -96,11 +96,11 @@ class ScoutManager:
             return
 
         if not self._nat_scout_unit:
-            if scout_ol := self.ai.mediator.get_units_from_role(
-                    role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD).first:
-                self._nat_scout_unit = scout_ol.tag
+            if scout_ols := self.ai.mediator.get_units_from_role(
+                    role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD):
+                self._nat_scout_unit = scout_ols.first.tag
                 self.ai.mediator.assign_role(
-                    tag=scout_ol.tag, role=UnitRole.CONTROL_GROUP_ONE)
+                    tag=scout_ols.first.tag, role=UnitRole.CONTROL_GROUP_ONE)
             elif scout_ling := self.ai.units(UnitTypeId.ZERGLING).first:
                 self._nat_scout_unit = scout_ling.tag
             else:
