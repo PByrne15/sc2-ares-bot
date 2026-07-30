@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from sc2.position import Point2
 
 if TYPE_CHECKING:
-    from ..main import WilldZergBot
+    from bot.main import WilldZergBot
 
 
 def _ley_lines_fixes(ai: "WilldZergBot"):

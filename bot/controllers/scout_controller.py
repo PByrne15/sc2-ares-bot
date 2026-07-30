@@ -5,36 +5,26 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-from sc2.units import Unit, Units
 
 from ares.consts import (
-    BURROWED_ALIAS,
-    COMMON_UNIT_IGNORE_TYPES,
-    LOSS_MARGINAL_OR_WORSE,
-    TOWNHALL_TYPES,
-    VICTORY_CLOSE_OR_BETTER,
     WORKER_TYPES,
-    EngagementResult,
     UnitRole
 )
 
 from ares.behaviors.combat.combat_maneuver import CombatManeuver
 from ares.behaviors.combat.individual import (
-    AMove,
     MoveToSafeTarget,
     KeepUnitSafe,
     PathUnitToTarget
 )
-from ares.behaviors.combat.group import (
-    KeepGroupSafe,
-    AMoveGroup
-)
+
+from bot.controllers.controller import Controller
 
 if TYPE_CHECKING:
-    from ..main import WilldZergBot
+    from bot.main import WilldZergBot
 
 
-class ScoutManager:
+class ScoutController(Controller):
     def __init__(self, ai: "WilldZergBot") -> None:
         self.ai = ai
 
@@ -46,7 +36,10 @@ class ScoutManager:
         self._nat_scout_attempts = 0
         self._scouted_lack_of_natural = False
 
-    def update(self) -> None:
+    async def start(self):
+        pass
+
+    async def update(self) -> None:
         if self._first_iteration:
             ol = self.ai.units(UnitTypeId.OVERLORD).first
             self.ai.mediator.assign_role(tag=ol.tag, role=UnitRole.SCOUTING)
@@ -67,17 +60,17 @@ class ScoutManager:
         self._attacking_overseer()
 
     def scout_for_natural(self) -> None:
+        print("Sending scout to natural")
         self._scouting_natural = True
 
     def cancel_scout_for_natural(self) -> None:
         self._scouting_natural = False
 
-    @property
     def enemy_nat_taken(self) -> bool:
         if not self._enemy_nat_taken:
             self._enemy_nat_taken = (
                 self.ai.mediator.get_enemy_expanded
-                or len(
+                or sum(
                     [IS_CARRYING_MINERALS in worker.buffs for worker
                      in self.ai.enemy_units(WORKER_TYPES).closer_than(
                          10, self.ai.mediator.get_enemy_nat)]
@@ -94,7 +87,7 @@ class ScoutManager:
                     self.ai.mediator.assign_role(
                         tag=scouting_unit.tag, role=UnitRole.SCOUTING)
 
-            print(f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {len(
+            print(f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {sum(
                 [IS_CARRYING_MINERALS in worker.buffs for worker
                  in self.ai.enemy_units(WORKER_TYPES).closer_than(
                      10, self.ai.mediator.get_enemy_nat)]
@@ -151,12 +144,12 @@ class ScoutManager:
                 count = 2
 
             self._morph_overseers_in_role(
-                UnitRole.DEFENDING, count, self.ai.defend_point)
+                UnitRole.DEFENDING, count, self.ai.controllers.defend_point)
 
     def _attacking_overseer(self) -> None:
-        if self.ai.supply_used == 200 and self.ai.attacks >= 2:
+        if self.ai.supply_used == 200 and self.ai.controllers.attacks >= 2:
             self._morph_overseers_in_role(
-                UnitRole.ATTACKING_MAIN_SQUAD, 2, self.ai.attacker_com)
+                UnitRole.ATTACKING_MAIN_SQUAD, 2, self.ai.controllers.attacker_com)
 
     def _morph_overseers_in_role(self, role: UnitRole, max_count: int, location: Point2 | None = None) -> None:
         if not location:

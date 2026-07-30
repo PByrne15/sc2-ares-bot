@@ -1,0 +1,3 @@
+from bot.controllers.scout_controller import ScoutController
+from bot.controllers.combat.attack_controller import AttackController
+from bot.controllers.combat.defend_controller import DefendController
