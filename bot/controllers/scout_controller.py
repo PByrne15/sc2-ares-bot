@@ -76,22 +76,24 @@ class ScoutController(Controller):
                          10, self.ai.mediator.get_enemy_nat)]
                 ) > 1
             )
+            if self._enemy_nat_taken:
+                print(f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {
+                    sum(
+                        [IS_CARRYING_MINERALS in worker.buffs for worker
+                         in self.ai.enemy_units(WORKER_TYPES).closer_than(
+                             10, self.ai.mediator.get_enemy_nat)]
+                    )
+                } @ {self.ai.time_formatted}")
 
         return self._enemy_nat_taken
 
     def _scout_for_natural(self) -> None:
         enemy_nat = self.ai.mediator.get_enemy_nat
-        if self.enemy_nat_taken:
+        if self.enemy_nat_taken():
             if scouting_unit := self.ai.unit_tag_dict.get(self._nat_scout_unit):
                 if scouting_unit.type_id == UnitTypeId.OVERLORD:
                     self.ai.mediator.assign_role(
                         tag=scouting_unit.tag, role=UnitRole.SCOUTING)
-
-            print(f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {sum(
-                [IS_CARRYING_MINERALS in worker.buffs for worker
-                 in self.ai.enemy_units(WORKER_TYPES).closer_than(
-                     10, self.ai.mediator.get_enemy_nat)]
-            )} @ {self.ai.time_formatted}")
 
             self._scouting_natural = False
             return

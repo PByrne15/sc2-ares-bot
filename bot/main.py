@@ -188,16 +188,17 @@ class WilldZergBot(AresBot):
                 worker_count = 16
             elif self.controllers.attacks == 1:
                 worker_count = min(self.supply_used -
-                                   2 * int(math.log(self.supply_used)) -
+                                   3 * int(math.log(self.supply_used)) -
                                    self.units(UnitTypeId.QUEEN).amount * 2,
                                    self.townhalls.amount * 19,
-                                   64)
+                                   60)
             else:
                 worker_count = min(self.supply_used -
                                    16 * int(math.log(self.supply_used)),
-                                   80)
+                                   75)
         except ValueError:
-            # We have already lost at this point but catch this to avoid crashing
+            # This is possible if we're taking the log of 0
+            # We have already lost at this point but catch it to avoid crashing
             worker_count = 14
 
         # After first attack stop production until we have 3 hatcheries
@@ -272,6 +273,7 @@ class WilldZergBot(AresBot):
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.HIVE))
             self.register_behavior(BuildStructure(
                 base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
+            self.register_behavior(GasBuildingController(to_count=2))
 
             researches = [
                 UpgradeId.ZERGMELEEWEAPONSLEVEL2,

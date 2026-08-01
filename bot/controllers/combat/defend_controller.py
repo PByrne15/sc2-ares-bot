@@ -14,6 +14,7 @@ from ares.behaviors.combat.combat_maneuver import CombatManeuver
 from ares.behaviors.combat.individual import (
     AMove,
     KeepUnitSafe,
+    PathUnitToTarget,
 )
 
 from bot.controllers.controller import Controller
@@ -66,8 +67,8 @@ class DefendController(Controller):
             for defender in defenders:
                 maneuver: CombatManeuver = CombatManeuver()
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
-                maneuver.add(AMove(
-                    unit=defender, target=self._defend_point))
+                maneuver.add(PathUnitToTarget(
+                    unit=defender, grid=ground_grid, target=self._defend_point))
                 self.ai.register_behavior(maneuver)
             return
 

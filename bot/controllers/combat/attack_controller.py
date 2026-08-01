@@ -1,7 +1,7 @@
 import random
 from typing import TYPE_CHECKING, Callable
 
-from cython_extensions.units_utils import cy_closest_to, cy_find_units_center_mass
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to, cy_find_units_center_mass
 
 import numpy as np
 from sc2.constants import IS_CARRYING_MINERALS
@@ -65,8 +65,25 @@ class AttackController(Controller):
     async def start(self) -> None:
         self._attacker_com = self.ai.expansion_entrance
 
-    async def update(self) -> None:
-        ground_grid: np.ndarray = self.ai.mediator.get_ground_grid
+    def _manage_first_attack(self) -> None:
+        if self._attacks > 0:
+            return
+
+        lings = self.ai.mediator.get_own_army_dict[UnitTypeId.ZERGLING]
+        _, num_units = cy_find_units_center_mass(lings, 3)
+        if ((num_units >= 6 or len(lings) > 6)
+                and not self.ai.enemy_units.filter(
+                lambda u: not u.type_id in self.ai.WORKER_TYPES).amount > 1
+            ):
+            # This should be hitting the opp natural around 2:30
+            self.ai.mediator.batch_assign_role(
+                tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
+
+        if self.ai.enemy_units.filter(lambda u: not u.type_id in self.ai.WORKER_TYPES).amount > 1:
+            self.ai.mediator.batch_assign_role(
+                tags=set(l.tag for l in lings), role=UnitRole.DEFENDING)
+
+    async def _timing_attacks(self) -> None:
         if self.ai.actual_iteration == self._trigger_attack_time + 100:
             self._attacks += 1
             lings = self.ai.units(UnitTypeId.ZERGLING)
@@ -77,6 +94,7 @@ class AttackController(Controller):
                 f"Sending attack number {self._attacks} with {lings.amount} lings @ {self.ai.time_formatted}")
             await self.ai.chat_send(f"Sending timing attack number {self._attacks}", True)
 
+    def _other_attacks(self) -> None:
         if self.ai.supply_used == 200 and self._attacks >= 2:
             self.ai.register_behavior(
                 UpgradeController([UpgradeId.OVERLORDSPEED],
@@ -88,6 +106,8 @@ class AttackController(Controller):
             self.ai.mediator.batch_assign_role(
                 tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
 
+    def _attack_behaviour(self) -> None:
+        ground_grid: np.ndarray = self.ai.mediator.get_ground_grid
         attackers: Units = self.ai.mediator.get_units_from_role(
             role=UnitRole.ATTACKING_MAIN_SQUAD)
 
@@ -97,6 +117,7 @@ class AttackController(Controller):
 
         com, _ = cy_find_units_center_mass(attackers, 20)
         self._attacker_com = Point2(com)
+        close_attackers = cy_closer_than(attackers, 20, com)
 
         enemy_units: Units = self.ai.enemy_units.closer_than(30, Point2(self._attacker_com)).filter(
             lambda u: not u.is_flying
@@ -110,7 +131,7 @@ class AttackController(Controller):
             print(enemy_units)
 
         combat_sim_result: EngagementResult = self.ai.mediator.can_win_fight(
-            own_units=attackers, enemy_units=enemy_units, workers_do_no_damage=True
+            own_units=close_attackers, enemy_units=enemy_units, workers_do_no_damage=True
         )
 
         for attacker in attackers:
@@ -126,8 +147,8 @@ class AttackController(Controller):
             else:
                 nearby_enemies = nearby_friendlies = 0
             if (combat_sim_result in LOSS_MARGINAL_OR_WORSE
-                        and attackers.amount < 120
-                        and nearby_enemies * 2 > nearby_friendlies
+                    and attackers.amount < 120
+                    and nearby_enemies * 2 > nearby_friendlies
                     ):
                 maneuver.add(KeepUnitSafe(attacker, ground_grid))
             target: Point2 | Unit = self._decide_attack_target(
@@ -135,6 +156,13 @@ class AttackController(Controller):
             maneuver.add(AMove(unit=attacker, target=target))
 
             self.ai.register_behavior(maneuver)
+
+    async def update(self) -> None:
+        self._manage_first_attack()
+        await self._timing_attacks()
+        self._other_attacks()
+
+        self._attack_behaviour()
 
     def _decide_attack_target(self, combat_sim_result: EngagementResult, unit: Unit, enemy_units: Units) -> Point2 | Unit:
         enemy_structures: Units = self.ai.enemy_structures
