@@ -1,23 +1,20 @@
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
-from sc2.units import Point2, Units
-
-from ares.consts import (
-    COMMON_UNIT_IGNORE_TYPES,
-    LOSS_MARGINAL_OR_WORSE,
-    EngagementResult,
-    UnitRole
-)
-
 from ares.behaviors.combat.combat_maneuver import CombatManeuver
 from ares.behaviors.combat.individual import (
     AMove,
     KeepUnitSafe,
     PathUnitToTarget,
 )
-
+from ares.consts import (
+    COMMON_UNIT_IGNORE_TYPES,
+    LOSS_MARGINAL_OR_WORSE,
+    EngagementResult,
+    UnitRole,
+)
 from bot.controllers.controller import Controller
+from sc2.units import Point2, Units
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot
@@ -83,7 +80,7 @@ class DefendController(Controller):
             ):
             print("Setting attackers to defend")
             self.ai.mediator.batch_assign_role(
-                tags=set(a.tag for a in attackers), role=UnitRole.DEFENDING)
+                tags={a.tag for a in attackers}, role=UnitRole.DEFENDING)
 
         for defender in defenders:
             maneuver: CombatManeuver = CombatManeuver()

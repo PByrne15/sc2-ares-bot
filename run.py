@@ -1,11 +1,10 @@
+import platform
 import random
 import sys
 from os import path
 from pathlib import Path
-import platform
-from typing import List
-from loguru import logger
 
+from loguru import logger
 from sc2 import maps
 from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
@@ -15,7 +14,6 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 import yaml
-
 from bot.main import WilldZergBot
 from ladder import run_ladder_game
 
@@ -66,14 +64,14 @@ def main():
         print(result, " against opponent ", opponentid)
     else:
         # Local game
-        map_list: List[str] = [
+        map_list: list[str] = [
             p.name.replace(f".{MAP_FILE_EXT}", "")
             for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
             if p.is_file()
         ]
         if len(map_list) == 0:
             logger.error(
-                f"Can't find maps, please check `MAPS_PATH` in `run.py'")
+                "Can't find maps, please check `MAPS_PATH` in `run.py'")
             logger.info("Trying back up option")
             logger.info(
                 f"\nLooking for maps in {MAPS_PATH} but didn't find anything. \n"
@@ -83,7 +81,7 @@ def main():
             )
 
             # see if user has any recent ladder maps
-            map_list: List[str] = [
+            map_list: list[str] = [
                 "PylonAIE_v4",
                 "PersephoneAIE_v4",
                 "TorchesAIE_v4",

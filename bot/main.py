@@ -2,57 +2,31 @@ import math
 import random
 from typing import TYPE_CHECKING
 
-from cython_extensions.general_utils import cy_unit_pending
-from cython_extensions.units_utils import cy_closest_to, cy_find_units_center_mass
-import numpy as np
-
 from ares import AresBot
-from ares.consts import (
-    BURROWED_ALIAS,
-    CHANGELING_TYPES,
-    COMMON_UNIT_IGNORE_TYPES,
-    LOSS_MARGINAL_OR_WORSE,
-    VICTORY_CLOSE_OR_BETTER,
-    EngagementResult,
-    UnitRole
-)
-from sc2.data import Result
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
-from sc2.position import Point2
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.units import Unit, Units
-
 from ares.behaviors.macro import (
     AutoSupply,
     BuildStructure,
-    GasBuildingController,
-    Mining,
     BuildWorkers,
-    SpawnController,
+    GasBuildingController,
     MacroPlan,
+    Mining,
+    SpawnController,
     TechUp,
-    UpgradeController
+    UpgradeController,
 )
-from ares.behaviors.combat.combat_maneuver import CombatManeuver
-from ares.behaviors.combat.individual import (
-    AMove,
-    MoveToSafeTarget,
-    KeepUnitSafe
+from ares.consts import (
+    UnitRole,
 )
-from ares.behaviors.combat.group import (
-    KeepGroupSafe,
-    AMoveGroup
-)
-
-from bot.controllers import (
-    AttackController,
-    DefendController,
-    ScoutController
-)
+from bot.controllers import AttackController, DefendController, ScoutController
 from bot.controllers.controller_data import ControllerData
 from bot.expansion_controller import FixedExpansionController
 from bot.helpers.map_fixes import apply_map_fixes
+from sc2.data import Result
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
+from sc2.units import Unit
 
 if TYPE_CHECKING:
     from bot.controllers.controller import Controller
@@ -80,7 +54,7 @@ class WilldZergBot(AresBot):
 
     async def on_start(self) -> None:
         apply_map_fixes(self)
-        await super(WilldZergBot, self).on_start()
+        await super().on_start()
         """
         This code runs once at the start of the game
         Do things here before the game starts
@@ -117,7 +91,7 @@ class WilldZergBot(AresBot):
         return self.enemy_start_locations[0]
 
     async def on_step(self, iteration: int) -> None:
-        await super(WilldZergBot, self).on_step(iteration)
+        await super().on_step(iteration)
         """
         This code runs continually throughout the game
         Populate this function with whatever your bot should do!
@@ -148,10 +122,10 @@ class WilldZergBot(AresBot):
         macro_plan = MacroPlan()
         workers_per_gas = 3
         if ((self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL3)
-                 and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
-                 )
-                    or (self.minerals < 100 and self.vespene > 300)
-                ):
+             and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
+             )
+                or (self.minerals < 100 and self.vespene > 300)
+            ):
             workers_per_gas = 1
         self.register_behavior(
             Mining(mineral_boost=True, workers_per_gas=workers_per_gas))
@@ -174,8 +148,8 @@ class WilldZergBot(AresBot):
             ))
 
         if (self.structures(UnitTypeId.SPAWNINGPOOL) and self.supply_used == 14
-                    and (self.units(UnitTypeId.OVERLORD).amount + self.already_pending(UnitTypeId.OVERLORD)) < 2
-                    and self.can_afford(UnitTypeId.OVERLORD)
+                and (self.units(UnitTypeId.OVERLORD).amount + self.already_pending(UnitTypeId.OVERLORD)) < 2
+                and self.can_afford(UnitTypeId.OVERLORD)
                 ):
             self.larva.first.build(UnitTypeId.OVERLORD)
         elif self.structures(UnitTypeId.SPAWNINGPOOL).ready:
@@ -217,8 +191,8 @@ class WilldZergBot(AresBot):
                 self.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
 
         if (self.already_pending_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
-                    and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
-                    and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+                and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
+                and self.structures(UnitTypeId.SPAWNINGPOOL).ready
                 ):
             # await self.chat_send("Upgrading to Lair", True)
             self.register_behavior(
@@ -228,11 +202,11 @@ class WilldZergBot(AresBot):
         for base in self.townhalls:
             if not queens or self.units(UnitTypeId.QUEEN).closest_distance_to(base) > 8:
                 if (self.can_afford(UnitTypeId.QUEEN)
-                            and base.is_ready
-                            and base.is_idle
-                            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                            and queens.amount < 10
-                        ):
+                        and base.is_ready
+                        and base.is_idle
+                        and self.structures(UnitTypeId.SPAWNINGPOOL).ready
+                        and queens.amount < 10
+                    ):
                     # await self.chat_send("Training Queen", True)
                     base.train(UnitTypeId.QUEEN)
             else:
@@ -241,10 +215,10 @@ class WilldZergBot(AresBot):
                     queen(AbilityId.EFFECT_INJECTLARVA, base)
 
         if (self.controllers.attacks
-                    and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
-                    and self.townhalls.amount >= 3
-                    and (self.units(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) >= 3)
-                ):
+                and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
+                and self.townhalls.amount >= 3
+                and (self.units(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) >= 3)
+            ):
             self.register_behavior(GasBuildingController(to_count=2))
             self.register_behavior(BuildStructure(
                 base_location=hq.position, structure_id=UnitTypeId.EVOLUTIONCHAMBER, to_count=2))
@@ -323,7 +297,7 @@ class WilldZergBot(AresBot):
         self.register_behavior(macro_plan)
 
     async def on_end(self, game_result: Result) -> None:
-        await super(WilldZergBot, self).on_end(game_result)
+        await super().on_end(game_result)
         """
         This code runs once at the end of the game
         Do things here after the game ends
@@ -336,7 +310,7 @@ class WilldZergBot(AresBot):
         #     # custom on_building_construction_complete logic here ...
         #
     async def on_unit_created(self, unit: Unit) -> None:
-        await super(WilldZergBot, self).on_unit_created(unit)
+        await super().on_unit_created(unit)
 
         if unit.type_id == UnitTypeId.ZERGLING:
             self.mediator.assign_role(tag=unit.tag, role=UnitRole.DEFENDING)
@@ -347,13 +321,13 @@ class WilldZergBot(AresBot):
     #     # custom on_unit_destroyed logic here ...
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float) -> None:
-        await super(WilldZergBot, self).on_unit_took_damage(unit, amount_damage_taken)
+        await super().on_unit_took_damage(unit, amount_damage_taken)
 
         if any(unit.position.distance_to(th) <= 10 for th in self.townhalls):
             self.controllers.set_under_attack_timer(100)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId) -> None:
-        await super(WilldZergBot, self).on_upgrade_complete(upgrade)
+        await super().on_upgrade_complete(upgrade)
 
         if upgrade in [
             UpgradeId.ZERGLINGMOVEMENTSPEED,

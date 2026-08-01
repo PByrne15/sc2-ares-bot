@@ -1,24 +1,16 @@
 from typing import TYPE_CHECKING
 
+from ares.behaviors.combat.combat_maneuver import CombatManeuver
+from ares.behaviors.combat.individual import (
+    PathUnitToTarget,
+)
+from ares.consts import WORKER_TYPES, UnitRole
+from bot.controllers.controller import Controller
 from sc2.constants import IS_CARRYING_MINERALS
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-
-from ares.consts import (
-    WORKER_TYPES,
-    UnitRole
-)
-
-from ares.behaviors.combat.combat_maneuver import CombatManeuver
-from ares.behaviors.combat.individual import (
-    MoveToSafeTarget,
-    KeepUnitSafe,
-    PathUnitToTarget
-)
-
-from bot.controllers.controller import Controller
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot
@@ -90,10 +82,10 @@ class ScoutController(Controller):
     def _scout_for_natural(self) -> None:
         enemy_nat = self.ai.mediator.get_enemy_nat
         if self.enemy_nat_taken():
-            if scouting_unit := self.ai.unit_tag_dict.get(self._nat_scout_unit):
-                if scouting_unit.type_id == UnitTypeId.OVERLORD:
-                    self.ai.mediator.assign_role(
-                        tag=scouting_unit.tag, role=UnitRole.SCOUTING)
+            scouting_unit = self.ai.unit_tag_dict.get(self._nat_scout_unit)
+            if (scouting_unit and scouting_unit.type_id == UnitTypeId.OVERLORD):
+                self.ai.mediator.assign_role(
+                    tag=scouting_unit.tag, role=UnitRole.SCOUTING)
 
             self._scouting_natural = False
             return
@@ -157,8 +149,9 @@ class ScoutController(Controller):
         if not location:
             location = self.ai.start_location
         if self.ai.mediator.get_units_from_role(
-            role=role, unit_type=set(
-                (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.OVERLORDCOCOON))
+            role=role, unit_type={UnitTypeId.OVERLORD,
+                                  UnitTypeId.OVERSEER,
+                                  UnitTypeId.OVERLORDCOCOON}
         ).amount < max_count and self.ai.can_afford(UnitTypeId.OVERSEER) and self.ai.minerals > 200:
             # print(
             #     f"Spawning overseer for role {role} @ {self.ai.time_formatted}")

@@ -1,7 +1,7 @@
-from ares.behaviors.macro import ExpansionController
 from typing import TYPE_CHECKING
 
 import numpy as np
+from ares.behaviors.macro import ExpansionController
 from sc2.position import Point2
 
 if TYPE_CHECKING:

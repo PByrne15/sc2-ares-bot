@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, Callable
-
-from sc2.units import Point2
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from bot.controllers.controller import Controller
+from sc2.units import Point2
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot

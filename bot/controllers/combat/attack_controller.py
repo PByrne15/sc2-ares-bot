@@ -1,35 +1,30 @@
 import random
-from typing import TYPE_CHECKING, Callable
-
-from cython_extensions.units_utils import cy_closer_than, cy_closest_to, cy_find_units_center_mass
+from typing import TYPE_CHECKING
 
 import numpy as np
-from sc2.constants import IS_CARRYING_MINERALS
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2
-from sc2.units import Unit, Units
-
-from ares.consts import (
-    COMMON_UNIT_IGNORE_TYPES,
-    LOSS_MARGINAL_OR_WORSE,
-    VICTORY_CLOSE_OR_BETTER,
-    EngagementResult,
-    UnitRole
-)
-
 from ares.behaviors.combat.combat_maneuver import CombatManeuver
 from ares.behaviors.combat.individual import (
     AMove,
     KeepUnitSafe,
 )
-from ares.behaviors.macro import (
-    UpgradeController
+from ares.behaviors.macro import UpgradeController
+from ares.consts import (
+    COMMON_UNIT_IGNORE_TYPES,
+    LOSS_MARGINAL_OR_WORSE,
+    VICTORY_CLOSE_OR_BETTER,
+    EngagementResult,
+    UnitRole,
 )
-
 from bot.controllers.controller import Controller
-
+from cython_extensions.units_utils import (
+    cy_closer_than,
+    cy_closest_to,
+    cy_find_units_center_mass,
+)
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
+from sc2.units import Unit, Units
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot
@@ -81,11 +76,11 @@ class AttackController(Controller):
         if (num_units >= 6 or len(lings) > 6) and not cancel_attack:
             # This should be hitting the opp natural around 2:30
             self.ai.mediator.batch_assign_role(
-                tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
+                tags={l.tag for l in lings}, role=UnitRole.ATTACKING_MAIN_SQUAD)
 
         if cancel_attack:
             self.ai.mediator.batch_assign_role(
-                tags=set(l.tag for l in lings), role=UnitRole.DEFENDING)
+                tags={l.tag for l in lings}, role=UnitRole.DEFENDING)
 
     async def _timing_attacks(self) -> None:
         # If we've seen a cannon we assume we won't be able to break in so skip the first timing attack
@@ -102,7 +97,7 @@ class AttackController(Controller):
             self._attacks += 1
             lings = self.ai.units(UnitTypeId.ZERGLING)
             self.ai.mediator.batch_assign_role(
-                tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
+                tags={l.tag for l in lings}, role=UnitRole.ATTACKING_MAIN_SQUAD)
 
             print(
                 f"Sending attack number {self._attacks} with {lings.amount} lings @ {self.ai.time_formatted}")
@@ -118,7 +113,7 @@ class AttackController(Controller):
             lings = self.ai.mediator.get_units_from_role(
                 role=UnitRole.DEFENDING, unit_type=UnitTypeId.ZERGLING)
             self.ai.mediator.batch_assign_role(
-                tags=set(l.tag for l in lings), role=UnitRole.ATTACKING_MAIN_SQUAD)
+                tags={l.tag for l in lings}, role=UnitRole.ATTACKING_MAIN_SQUAD)
 
     def _attack_behaviour(self) -> None:
         ground_grid: np.ndarray = self.ai.mediator.get_ground_grid
