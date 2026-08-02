@@ -82,9 +82,14 @@ class AttackController(Controller):
                 tags={l.tag for l in lings}, role=UnitRole.ATTACKING_MAIN_SQUAD)
 
         if cancel_attack:
-            self.ai.mediator.batch_assign_role(
-                tags={l.tag for l in lings}, role=UnitRole.DEFENDING)
-            print("Cancelling first attack")
+            attacking_lings = self.ai.mediator.get_units_from_role(
+                role=UnitRole.ATTACKING_MAIN_SQUAD
+            )
+            if attacking_lings:
+                self.ai.mediator.batch_assign_role(
+                    tags={l.tag for l in attacking_lings}, role=UnitRole.DEFENDING
+                )
+                print("Cancelling first attack")
 
     async def _timing_attacks(self) -> None:
         # If we've seen a cannon we assume we won't be able to break in so skip the first timing attack

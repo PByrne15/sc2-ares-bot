@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from bot.controllers.controller import Controller
-from sc2.units import Point2
+from sc2.units import Point2, Unit
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot
@@ -67,3 +67,10 @@ class ControllerData:
 
     def cancel_scout_for_natural(self) -> None:
         return self.interfaces["cancel_scout_for_natural"]()
+
+    # InjectController interfaces
+    def add_inject_queen(self, queen: Unit) -> bool:
+        return self.interfaces["add_inject_queen"](queen)
+
+    def remove_inject_queen(self, queen: Unit) -> None:
+        return self.interfaces["remove_inject_queen"](queen)

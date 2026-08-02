@@ -1,3 +1,4 @@
 from bot.controllers.combat.attack_controller import AttackController
 from bot.controllers.combat.defend_controller import DefendController
+from bot.controllers.queens.inject_controller import InjectController
 from bot.controllers.scout_controller import ScoutController

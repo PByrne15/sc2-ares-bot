@@ -17,7 +17,12 @@ from ares.behaviors.macro import (
 from ares.consts import (
     UnitRole,
 )
-from bot.controllers import AttackController, DefendController, ScoutController
+from bot.controllers import (
+    AttackController,
+    DefendController,
+    InjectController,
+    ScoutController,
+)
 from bot.controllers.controller_data import ControllerData
 from bot.expansion_controller import FixedExpansionController
 from bot.helpers.map_fixes import apply_map_fixes
@@ -46,6 +51,7 @@ class WilldZergBot(AresBot):
         self.controller_list.append(ScoutController(self))
         self.controller_list.append(AttackController(self))
         self.controller_list.append(DefendController(self))
+        self.controller_list.append(InjectController(self))
 
         self.controllers = ControllerData(self, self.controller_list)
 
@@ -199,22 +205,6 @@ class WilldZergBot(AresBot):
             self.register_behavior(
                 TechUp(base_location=hq.position, desired_tech=UnitTypeId.LAIR))
 
-        queens = self.units(UnitTypeId.QUEEN)
-        for base in self.townhalls:
-            if not queens or self.units(UnitTypeId.QUEEN).closest_distance_to(base) > 8:
-                if (self.can_afford(UnitTypeId.QUEEN)
-                        and base.is_ready
-                        and base.is_idle
-                        and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-                        and queens.amount < 10
-                    ):
-                    # await self.chat_send("Training Queen", True)
-                    base.train(UnitTypeId.QUEEN)
-            else:
-                queen = queens.closest_to(base)
-                if queen.energy >= 25:
-                    queen(AbilityId.EFFECT_INJECTLARVA, base)
-
         if (self.controllers.attacks
                 and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
                 and self.townhalls.amount >= 3
@@ -315,6 +305,11 @@ class WilldZergBot(AresBot):
 
         if unit.type_id == UnitTypeId.ZERGLING:
             self.mediator.assign_role(tag=unit.tag, role=UnitRole.DEFENDING)
+        if unit.type_id == UnitTypeId.QUEEN:
+            is_inject_queen = self.controllers.add_inject_queen(unit)
+            if not is_inject_queen:
+                self.mediator.assign_role(
+                    tag=unit.tag, role=UnitRole.QUEEN_CREEP)
 
     # async def on_unit_destroyed(self, unit_tag: int) -> None:
     #     await super(MyBot, self).on_unit_destroyed(unit_tag)
