@@ -128,6 +128,7 @@ class ScoutController(Controller):
             # If the scout died without reaching the nat a few times
             # then we will assume it has been taken
             if self._nat_scout_attempts >= 3:
+                print("Reached limit for scouting natural, assuming it has been taken")
                 self._scouting_natural = False
                 self._enemy_nat_taken = True
 

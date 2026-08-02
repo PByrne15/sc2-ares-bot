@@ -58,11 +58,14 @@ class AttackController(Controller):
     def attacker_com(self) -> Point2:
         return self._attacker_com
 
+    def skip_first_attack(self) -> bool:
+        return self._skip_first_attack
+
     async def start(self) -> None:
         self._attacker_com = self.ai.expansion_entrance
 
     def _manage_first_attack(self) -> None:
-        if self._attacks > 0:
+        if self._attacks > 0 or self._skip_first_attack:
             return
 
         lings = self.ai.mediator.get_own_army_dict[UnitTypeId.ZERGLING]
@@ -71,7 +74,7 @@ class AttackController(Controller):
             self.ai.enemy_units.filter(
                 lambda u: not u.type_id in self.ai.WORKER_TYPES).amount > 1
             or self.ai.enemy_structures.filter(
-                lambda u: u.type_id is UnitTypeId.PHOTONCANNON and u.is_ready).amount > 1
+                lambda u: u.type_id is UnitTypeId.PHOTONCANNON and u.is_ready).amount > 0
         )
         if (num_units >= 6 or len(lings) > 6) and not cancel_attack:
             # This should be hitting the opp natural around 2:30
@@ -81,20 +84,23 @@ class AttackController(Controller):
         if cancel_attack:
             self.ai.mediator.batch_assign_role(
                 tags={l.tag for l in lings}, role=UnitRole.DEFENDING)
+            print("Cancelling first attack")
 
     async def _timing_attacks(self) -> None:
         # If we've seen a cannon we assume we won't be able to break in so skip the first timing attack
-        if (self._attacks == 0 and self.ai.enemy_structures.filter(
+        if (self._attacks == 0 and not self._skip_first_attack
+                and self.ai.enemy_structures.filter(
                     lambda u: u.type_id is UnitTypeId.PHOTONCANNON and u.is_ready).amount > 0
                 ):
-            self._attacks = 1
             self._skip_first_attack = True
-            print("Scouted a cannon so skipping first attack")
+            print("Scouted a cannon so skipping first timing attack")
+            return
 
         if self.ai.actual_iteration == self._trigger_attack_time + 100:
-            if self._attacks == 1 and self._skip_first_attack:
-                return
             self._attacks += 1
+            if self._attacks == 1 and self._skip_first_attack:
+                print("Would be sending first attack but skipped")
+                return
             lings = self.ai.units(UnitTypeId.ZERGLING)
             self.ai.mediator.batch_assign_role(
                 tags={l.tag for l in lings}, role=UnitRole.ATTACKING_MAIN_SQUAD)
@@ -156,8 +162,8 @@ class AttackController(Controller):
             else:
                 nearby_enemies = nearby_friendlies = 0
             if (combat_sim_result in LOSS_MARGINAL_OR_WORSE
-                        and attackers.amount < 120
-                        and nearby_enemies * 2 > nearby_friendlies
+                    and attackers.amount < 120
+                    and nearby_enemies * 2 > nearby_friendlies
                     ):
                 maneuver.add(KeepUnitSafe(attacker, ground_grid))
             target: Point2 | Unit = self._decide_attack_target(

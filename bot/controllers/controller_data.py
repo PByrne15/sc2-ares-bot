@@ -48,6 +48,10 @@ class ControllerData:
     def attacker_com(self) -> Point2:
         return self.interfaces["attacker_com"]()
 
+    @property
+    def skip_first_attack(self) -> bool:
+        return self.interfaces["skip_first_attack"]()
+
     # DefendController interfaces
     @property
     def defend_point(self) -> Point2:

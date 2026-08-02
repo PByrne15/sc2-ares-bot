@@ -158,9 +158,10 @@ class WilldZergBot(AresBot):
         try:
             if not self.structures(UnitTypeId.SPAWNINGPOOL):
                 worker_count = 14
-            elif not self.controllers.attacks:
+            elif not self.controllers.attacks and not self.controllers.skip_first_attack:
                 worker_count = 16
-            elif self.controllers.attacks == 1:
+            elif self.controllers.attacks == 1 or (self.controllers.skip_first_attack
+                                                   and self.controllers.attacks == 0):
                 worker_count = min(self.supply_used -
                                    3 * int(math.log(self.supply_used)) -
                                    self.units(UnitTypeId.QUEEN).amount * 2,
