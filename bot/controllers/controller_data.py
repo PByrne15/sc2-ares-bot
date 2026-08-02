@@ -76,3 +76,14 @@ class ControllerData:
 
     def remove_inject_queen(self, queen: Unit) -> None:
         return self.interfaces["remove_inject_queen"](queen)
+
+    # CreepController interfaces
+    def add_creep_queen(self, queen: Unit) -> bool:
+        return self.interfaces["add_creep_queen"](queen)
+
+    def remove_creep_queen(self, queen: Unit) -> None:
+        return self.interfaces["remove_creep_queen"](queen)
+
+    # QueenController interfaces
+    def assign_queen_default(self, queen: Unit) -> None:
+        return self.interfaces["assign_queen_default"](queen)

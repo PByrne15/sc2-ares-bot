@@ -9,6 +9,7 @@ from ares.behaviors.combat.individual import (
 )
 from ares.behaviors.macro import UpgradeController
 from ares.consts import (
+    CHANGELING_TYPES,
     COMMON_UNIT_IGNORE_TYPES,
     LOSS_MARGINAL_OR_WORSE,
     VICTORY_CLOSE_OR_BETTER,
@@ -228,6 +229,7 @@ class AttackController(Controller):
                 not closest_unit.is_burrowed
                 or closest_unit.type_id in [UnitTypeId.WIDOWMINEBURROWED]
             )
+            and not closest_unit.type_id in CHANGELING_TYPES
         ):
             return closest_unit.position
         elif enemy_structures:

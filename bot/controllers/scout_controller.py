@@ -106,11 +106,13 @@ class ScoutController(Controller):
             self._scouting_natural = False
             return
 
-        if self.ai.is_visible(enemy_nat):
+        if self._nat_scout_unit and self.ai.is_visible(enemy_nat):
             # Successfully scouted a lack of natural so add an extra retry when the unit is killed
             self._scouted_lack_of_natural = True
+            return
 
-        if not self._nat_scout_unit:
+        # Assign a new scout if we don't have one and can't already see the natural location
+        if not self._nat_scout_unit and not self.ai.is_visible(enemy_nat):
             if scout_ols := self.ai.mediator.get_units_from_role(
                 role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD
             ):
@@ -131,6 +133,10 @@ class ScoutController(Controller):
             self.ai.mediator.assign_role(
                 tag=self._nat_scout_unit, role=UnitRole.CONTROL_GROUP_ONE
             )
+
+        # If we don't have one at this point we must have visibility from another unit
+        if not self._nat_scout_unit:
+            return
 
         if scouting_unit := self.ai.unit_tag_dict.get(self._nat_scout_unit):
             scouting_unit.move(enemy_nat)

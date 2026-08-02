@@ -19,15 +19,16 @@ from ares.consts import (
 )
 from bot.controllers import (
     AttackController,
+    CreepController,
     DefendController,
     InjectController,
+    QueenController,
     ScoutController,
 )
 from bot.controllers.controller_data import ControllerData
 from bot.expansion_controller import FixedExpansionController
 from bot.helpers.map_fixes import apply_map_fixes
 from sc2.data import Result
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
@@ -52,6 +53,8 @@ class WilldZergBot(AresBot):
         self.controller_list.append(AttackController(self))
         self.controller_list.append(DefendController(self))
         self.controller_list.append(InjectController(self))
+        self.controller_list.append(CreepController(self))
+        self.controller_list.append(QueenController(self))
 
         self.controllers = ControllerData(self, self.controller_list)
 
@@ -146,9 +149,8 @@ class WilldZergBot(AresBot):
 
         if not self.townhalls:
             return
-        hq = next(
-            (th for th in self.townhalls if th.position == self.start_location), None
-        )
+
+        hq = self.townhalls.closest_to(self.start_location)
         if not hq:
             hq = self.townhalls.first
 
@@ -356,9 +358,7 @@ class WilldZergBot(AresBot):
         if unit.type_id == UnitTypeId.ZERGLING:
             self.mediator.assign_role(tag=unit.tag, role=UnitRole.DEFENDING)
         if unit.type_id == UnitTypeId.QUEEN:
-            is_inject_queen = self.controllers.add_inject_queen(unit)
-            if not is_inject_queen:
-                self.mediator.assign_role(tag=unit.tag, role=UnitRole.QUEEN_CREEP)
+            self.controllers.assign_queen_default(unit)
 
     # async def on_unit_destroyed(self, unit_tag: int) -> None:
     #     await super(MyBot, self).on_unit_destroyed(unit_tag)
