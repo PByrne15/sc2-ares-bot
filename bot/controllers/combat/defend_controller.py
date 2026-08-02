@@ -103,7 +103,10 @@ class DefendController(Controller):
             ).amount
             if (
                 combat_sim_result in LOSS_MARGINAL_OR_WORSE
-                or defender.position.distance_to_closest(self.ai.townhalls) > 40
+                or (
+                    self.ai.townhalls
+                    and defender.position.distance_to_closest(self.ai.townhalls) > 40
+                )
             ) and nearby_enemies * 2 > nearby_friendlies:
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
             elif close_units:
