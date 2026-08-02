@@ -14,9 +14,7 @@ def _ley_lines_fixes(ai: "WilldZergBot"):
 
 
 def apply_map_fixes(ai: "WilldZergBot"):
-    FIXES = {
-        "Ley Lines AIE": _ley_lines_fixes
-    }
+    FIXES = {"Ley Lines AIE": _ley_lines_fixes}
 
     map_name = ai.game_info.map_name
     print(map_name)

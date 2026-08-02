@@ -11,7 +11,6 @@ from ares.managers.manager_mediator import ManagerMediator
 
 
 class FixedExpansionController(ExpansionController):
-
     def _get_next_expansion_location(
         self, ai: "AresBot", mediator: ManagerMediator
     ) -> Point2 | None:

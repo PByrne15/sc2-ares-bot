@@ -15,13 +15,15 @@ class ControllerData:
         for controller in controllers:
             interfaces = controller.interfaces()
             # Check there are no repeats
-            assert not any(
-                k in self.interfaces for k in interfaces)
+            assert not any(k in self.interfaces for k in interfaces)
             self.interfaces.update(interfaces)
 
         # Check that we're not missing any interfaces
-        local_funcs = [d for d in dir(ControllerData) if isinstance(
-            getattr(ControllerData, d), Callable | property)]
+        local_funcs = [
+            d
+            for d in dir(ControllerData)
+            if isinstance(getattr(ControllerData, d), Callable | property)
+        ]
         for interface in self.interfaces:
             assert interface in local_funcs
             local_funcs.remove(interface)

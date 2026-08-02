@@ -70,8 +70,7 @@ def main():
             if p.is_file()
         ]
         if len(map_list) == 0:
-            logger.error(
-                "Can't find maps, please check `MAPS_PATH` in `run.py'")
+            logger.error("Can't find maps, please check `MAPS_PATH` in `run.py'")
             logger.info("Trying back up option")
             logger.info(
                 f"\nLooking for maps in {MAPS_PATH} but didn't find anything. \n"
@@ -105,8 +104,7 @@ def main():
             maps.get(random.choice(map_list)),
             [
                 bot1,
-                Computer(random_race, Difficulty.CheatInsane,
-                         ai_build=build),
+                Computer(random_race, Difficulty.CheatInsane, ai_build=build),
             ],
             realtime=False,
         )

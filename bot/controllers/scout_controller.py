@@ -38,11 +38,17 @@ class ScoutController(Controller):
             self._first_iteration = False
 
         ols = self.ai.mediator.get_units_from_role(
-            role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD)
+            role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD
+        )
         for ol in ols:
             maneuver = CombatManeuver()
-            maneuver.add(PathUnitToTarget(
-                ol, self.ai.mediator.get_air_grid, self.ai.mediator.get_ol_spot_near_enemy_nat))
+            maneuver.add(
+                PathUnitToTarget(
+                    ol,
+                    self.ai.mediator.get_air_grid,
+                    self.ai.mediator.get_ol_spot_near_enemy_nat,
+                )
+            )
             self.ai.register_behavior(maneuver)
 
         if self._scouting_natural:
@@ -63,19 +69,28 @@ class ScoutController(Controller):
             self._enemy_nat_taken = (
                 self.ai.mediator.get_enemy_expanded
                 or sum(
-                    [IS_CARRYING_MINERALS in worker.buffs for worker
-                     in self.ai.enemy_units(WORKER_TYPES).closer_than(
-                         10, self.ai.mediator.get_enemy_nat)]
-                ) > 1
+                    [
+                        IS_CARRYING_MINERALS in worker.buffs
+                        for worker in self.ai.enemy_units(WORKER_TYPES).closer_than(
+                            10, self.ai.mediator.get_enemy_nat
+                        )
+                    ]
+                )
+                > 1
             )
             if self._enemy_nat_taken:
-                print(f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {
-                    sum(
-                        [IS_CARRYING_MINERALS in worker.buffs for worker
-                         in self.ai.enemy_units(WORKER_TYPES).closer_than(
-                             10, self.ai.mediator.get_enemy_nat)]
-                    )
-                } @ {self.ai.time_formatted}")
+                print(
+                    f"Scouted a natural: {self.ai.mediator.get_enemy_expanded=}, {
+                        sum(
+                            [
+                                IS_CARRYING_MINERALS in worker.buffs
+                                for worker in self.ai.enemy_units(
+                                    WORKER_TYPES
+                                ).closer_than(10, self.ai.mediator.get_enemy_nat)
+                            ]
+                        )
+                    } @ {self.ai.time_formatted}"
+                )
 
         return self._enemy_nat_taken
 
@@ -83,9 +98,10 @@ class ScoutController(Controller):
         enemy_nat = self.ai.mediator.get_enemy_nat
         if self.enemy_nat_taken():
             scouting_unit = self.ai.unit_tag_dict.get(self._nat_scout_unit)
-            if (scouting_unit and scouting_unit.type_id == UnitTypeId.OVERLORD):
+            if scouting_unit and scouting_unit.type_id == UnitTypeId.OVERLORD:
                 self.ai.mediator.assign_role(
-                    tag=scouting_unit.tag, role=UnitRole.SCOUTING)
+                    tag=scouting_unit.tag, role=UnitRole.SCOUTING
+                )
 
             self._scouting_natural = False
             return
@@ -96,20 +112,25 @@ class ScoutController(Controller):
 
         if not self._nat_scout_unit:
             if scout_ols := self.ai.mediator.get_units_from_role(
-                    role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD):
+                role=UnitRole.SCOUTING, unit_type=UnitTypeId.OVERLORD
+            ):
                 self._nat_scout_unit = scout_ols.first.tag
             elif scout_ling := self.ai.mediator.get_units_from_roles(
-                    roles=(UnitRole.DEFENDING, UnitRole.ATTACKING_MAIN_SQUAD), unit_type=UnitTypeId.ZERGLING):
+                roles=(UnitRole.DEFENDING, UnitRole.ATTACKING_MAIN_SQUAD),
+                unit_type=UnitTypeId.ZERGLING,
+            ):
                 self._nat_scout_unit = scout_ling.first.tag
             else:
                 # No units available to scout with, try again next time
                 if not self.ai.actual_iteration % 10:
                     print(
-                        f"No units available to scout with  @ {self.ai.time_formatted}")
+                        f"No units available to scout with  @ {self.ai.time_formatted}"
+                    )
                 return
 
             self.ai.mediator.assign_role(
-                tag=self._nat_scout_unit, role=UnitRole.CONTROL_GROUP_ONE)
+                tag=self._nat_scout_unit, role=UnitRole.CONTROL_GROUP_ONE
+            )
 
         if scouting_unit := self.ai.unit_tag_dict.get(self._nat_scout_unit):
             scouting_unit.move(enemy_nat)
@@ -123,7 +144,8 @@ class ScoutController(Controller):
                 self._scouted_lack_of_natural = False
                 self._nat_scout_attempts -= 1
             print(
-                f"Scouting unit died, attempts =  {self._nat_scout_attempts} @ {self.ai.time_formatted}")
+                f"Scouting unit died, attempts =  {self._nat_scout_attempts} @ {self.ai.time_formatted}"
+            )
 
             # If the scout died without reaching the nat a few times
             # then we will assume it has been taken
@@ -139,25 +161,35 @@ class ScoutController(Controller):
                 count = 2
 
             self._morph_overseers_in_role(
-                UnitRole.DEFENDING, count, self.ai.controllers.defend_point)
+                UnitRole.DEFENDING, count, self.ai.controllers.defend_point
+            )
 
     def _attacking_overseer(self) -> None:
         if self.ai.supply_used == 200 and self.ai.controllers.attacks >= 2:
             self._morph_overseers_in_role(
-                UnitRole.ATTACKING_MAIN_SQUAD, 2, self.ai.controllers.attacker_com)
+                UnitRole.ATTACKING_MAIN_SQUAD, 2, self.ai.controllers.attacker_com
+            )
 
-    def _morph_overseers_in_role(self, role: UnitRole, max_count: int, location: Point2 | None = None) -> None:
+    def _morph_overseers_in_role(
+        self, role: UnitRole, max_count: int, location: Point2 | None = None
+    ) -> None:
         if not location:
             location = self.ai.start_location
-        if self.ai.mediator.get_units_from_role(
-            role=role, unit_type={UnitTypeId.OVERLORD,
-                                  UnitTypeId.OVERSEER,
-                                  UnitTypeId.OVERLORDCOCOON}
-        ).amount < max_count and self.ai.can_afford(UnitTypeId.OVERSEER) and self.ai.minerals > 200:
+        if (
+            self.ai.mediator.get_units_from_role(
+                role=role,
+                unit_type={
+                    UnitTypeId.OVERLORD,
+                    UnitTypeId.OVERSEER,
+                    UnitTypeId.OVERLORDCOCOON,
+                },
+            ).amount
+            < max_count
+            and self.ai.can_afford(UnitTypeId.OVERSEER)
+            and self.ai.minerals > 200
+        ):
             # print(
             #     f"Spawning overseer for role {role} @ {self.ai.time_formatted}")
-            overlord = self.ai.units(UnitTypeId.OVERLORD).closest_to(
-                location)
+            overlord = self.ai.units(UnitTypeId.OVERLORD).closest_to(location)
             overlord(AbilityId.MORPH_OVERSEER, subtract_cost=True)
-            self.ai.mediator.assign_role(
-                tag=overlord.tag, role=role)
+            self.ai.mediator.assign_role(tag=overlord.tag, role=role)
