@@ -38,21 +38,15 @@ class DefendController(Controller):
 
     async def update(self) -> None:
         ground_grid: np.ndarray = self.ai.mediator.get_ground_grid
-        attackers: Units = self.ai.mediator.get_units_from_role(
-            role=UnitRole.ATTACKING_MAIN_SQUAD
-        )
         defenders: Units = self.ai.mediator.get_units_from_role(role=UnitRole.DEFENDING)
-        unassigned_lings = [
-            l
-            for l in self.ai.units(UnitTypeId.ZERGLING)
-            if l not in (attackers + defenders)
+        iteration_mod = (
+            self.ai.actual_iteration % self.ai.controllers.ling_micro_interval
+        )
+        defenders_this_iteration = [
+            a
+            for a in defenders
+            if a.tag % self.ai.controllers.ling_micro_interval == iteration_mod
         ]
-
-        if unassigned_lings:
-            print("FOUND LINGS WITHOUT A ROLE. ASSIGNING THEM TO DEFENDING")
-            self.ai.mediator.batch_assign_role(
-                tags={l.tag for l in unassigned_lings}, role=UnitRole.DEFENDING
-            )
 
         if not self.ai.townhalls:
             self._defend_point = self.ai.start_location
@@ -80,7 +74,7 @@ class DefendController(Controller):
             close_units = self.ai.enemy_units
 
         if not close_units:
-            for defender in defenders:
+            for defender in defenders_this_iteration:
                 maneuver: CombatManeuver = CombatManeuver()
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
                 maneuver.add(
@@ -113,7 +107,7 @@ class DefendController(Controller):
         #             tags={a.tag for a in attackers}, role=UnitRole.DEFENDING
         #         )
 
-        for defender in defenders:
+        for defender in defenders_this_iteration:
             maneuver: CombatManeuver = CombatManeuver()
             nearby_friendlies = defenders.closer_than(
                 20, close_units.closest_to(defender)

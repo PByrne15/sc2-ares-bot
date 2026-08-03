@@ -1,3 +1,4 @@
+import math
 import random
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,8 @@ from sc2.units import Unit, Units
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot
+
+MAX_ZERGLING_COMMANDS = 40
 
 
 class AttackController(Controller):
@@ -62,6 +65,14 @@ class AttackController(Controller):
 
     def skip_first_attack(self) -> bool:
         return self._skip_first_attack
+
+    def ling_micro_interval(self) -> int:
+        return max(
+            1,
+            math.ceil(
+                self.ai.units(UnitTypeId.ZERGLING).amount / MAX_ZERGLING_COMMANDS
+            ),
+        )
 
     async def start(self) -> None:
         self._attacker_com = self.ai.expansion_entrance
@@ -180,7 +191,22 @@ class AttackController(Controller):
             workers_do_no_damage=True,
         )
 
-        for attacker in attackers:
+        iteration_mod = (
+            self.ai.actual_iteration % self.ai.controllers.ling_micro_interval
+        )
+        attackers_this_iteration = [
+            a
+            for a in attackers
+            if a.tag % self.ai.controllers.ling_micro_interval == iteration_mod
+        ]
+        # print(f"{iteration_mod=}, {self.ai.controllers.ling_micro_interval=}")
+        # print(
+        #     f"{len(attackers)} total, {len(attackers_this_iteration)} this iteration @ {self.ai.actual_iteration}"
+        # )
+        for attacker in attackers_this_iteration:
+            # print(
+            #     f"{attacker.tag=}, {attacker.tag % self.ai.controllers.ling_micro_interval=}"
+            # )
             maneuver: CombatManeuver = CombatManeuver()
             if enemy_units.closer_than(10, attacker):
                 nearby_friendlies = attackers.closer_than(

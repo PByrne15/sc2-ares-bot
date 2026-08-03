@@ -51,6 +51,10 @@ class ControllerData:
         return self.interfaces["attacker_com"]()
 
     @property
+    def ling_micro_interval(self) -> bool:
+        return self.interfaces["ling_micro_interval"]()
+
+    @property
     def skip_first_attack(self) -> bool:
         return self.interfaces["skip_first_attack"]()
 
