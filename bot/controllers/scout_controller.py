@@ -196,6 +196,8 @@ class ScoutController(Controller):
         ):
             # print(
             #     f"Spawning overseer for role {role} @ {self.ai.time_formatted}")
+            if not self.ai.units(UnitTypeId.OVERLORD):
+                return
             overlord = self.ai.units(UnitTypeId.OVERLORD).closest_to(location)
             overlord(AbilityId.MORPH_OVERSEER, subtract_cost=True)
             self.ai.mediator.assign_role(tag=overlord.tag, role=role)

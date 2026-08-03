@@ -82,8 +82,9 @@ class CreepController(Controller):
             self.ai.train(UnitTypeId.QUEEN, closest_to=th.position)
 
     async def update(self) -> None:
-        self._maybe_build_queen(
-            self.ai.townhalls.closest_to(self.ai.mediator.get_own_nat)
-        )
+        if self.ai.townhalls:
+            self._maybe_build_queen(
+                self.ai.townhalls.closest_to(self.ai.mediator.get_own_nat)
+            )
         self._queen_spread_creep()
         self._tumor_spread_creep()
