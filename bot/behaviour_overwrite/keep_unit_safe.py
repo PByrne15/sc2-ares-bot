@@ -1,0 +1,54 @@
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import numpy as np
+from ares.behaviors.behavior import Behavior
+from ares.behaviors.combat.individual.combat_individual_behavior import (
+    CombatIndividualBehavior,
+)
+from ares.managers.manager_mediator import ManagerMediator
+from bot.behaviour_overwrite.path_unit_to_target import PathUnitToTarget
+from sc2.position import Point2
+from sc2.unit import Unit
+
+if TYPE_CHECKING:
+    from ares import AresBot
+
+
+@dataclass
+class KeepUnitSafe(CombatIndividualBehavior):
+    """Get a unit to safety based on the influence grid passed in.
+
+    Example:
+    ```py
+    from ares.behaviors.combat.individual import KeepUnitSafe
+
+    unit: Unit
+    grid: np.ndarray = self.mediator.get_ground_grid
+    self.register_behavior(KeepUnitSafe(unit, grid))
+    ```
+
+    Attributes:
+        unit: The unit to stay safe.
+        grid: 2D grid which usually contains enemy influence.
+
+    """
+
+    unit: Unit
+    grid: np.ndarray
+
+    def execute(self, ai: "AresBot", config: dict, mediator: ManagerMediator) -> bool:
+        # no action executed
+        if mediator.is_position_safe(grid=self.grid, position=self.unit.position):
+            return False
+        else:
+            safe_spot: Point2 = mediator.find_closest_safe_spot(
+                from_pos=self.unit.position, grid=self.grid
+            )
+            path: Behavior = PathUnitToTarget(
+                unit=self.unit,
+                grid=self.grid,
+                target=safe_spot,
+                success_at_distance=0.0,
+            )
+            return path.execute(ai, config, mediator)

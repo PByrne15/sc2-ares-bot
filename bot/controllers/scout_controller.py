@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
 
 from ares.behaviors.combat.combat_maneuver import CombatManeuver
-from ares.behaviors.combat.individual import (
+from ares.consts import WORKER_TYPES, UnitRole
+from bot.behaviour_overwrite import (
     PathUnitToTarget,
 )
-from ares.consts import WORKER_TYPES, UnitRole
 from bot.controllers.controller import Controller
 from sc2.constants import IS_CARRYING_MINERALS
 from sc2.ids.ability_id import AbilityId

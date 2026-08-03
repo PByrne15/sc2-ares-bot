@@ -3,10 +3,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.behaviors.combat.combat_maneuver import CombatManeuver
-from ares.behaviors.combat.individual import (
-    AMove,
-    KeepUnitSafe,
-)
 from ares.behaviors.macro import UpgradeController
 from ares.consts import (
     CHANGELING_TYPES,
@@ -15,6 +11,10 @@ from ares.consts import (
     VICTORY_CLOSE_OR_BETTER,
     EngagementResult,
     UnitRole,
+)
+from bot.behaviour_overwrite import (
+    AMove,
+    KeepUnitSafe,
 )
 from bot.controllers.controller import Controller
 from cython_extensions.units_utils import (
@@ -172,7 +172,7 @@ class AttackController(Controller):
         )
 
         if not self.ai.actual_iteration % 50 and self.ai.time > 720:
-            print(enemy_units)
+            print(f"{enemy_units} @ {self.ai.time_formatted}")
 
         combat_sim_result: EngagementResult = self.ai.mediator.can_win_fight(
             own_units=close_attackers,
@@ -187,19 +187,20 @@ class AttackController(Controller):
                     20, enemy_units.closest_to(attacker)
                 ).amount
                 nearby_enemies = (
-                    enemy_units.closer_than(10, enemy_units.closest_to(attacker))
+                    enemy_units.closer_than(15, enemy_units.closest_to(attacker))
                     .filter(lambda u: not u.type_id in self.ai.WORKER_TYPES)
                     .amount
                 )
-
             else:
                 nearby_enemies = nearby_friendlies = 0
+
             if (
                 combat_sim_result in LOSS_MARGINAL_OR_WORSE
                 and attackers.amount < 120
                 and nearby_enemies * 2 > nearby_friendlies
             ):
                 maneuver.add(KeepUnitSafe(attacker, ground_grid))
+
             target: Point2 | Unit = self._decide_attack_target(
                 combat_sim_result, attacker, enemy_units
             )

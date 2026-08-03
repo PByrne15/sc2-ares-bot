@@ -2,16 +2,16 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.behaviors.combat.combat_maneuver import CombatManeuver
-from ares.behaviors.combat.individual import (
-    AMove,
-    KeepUnitSafe,
-    PathUnitToTarget,
-)
 from ares.consts import (
     COMMON_UNIT_IGNORE_TYPES,
     LOSS_MARGINAL_OR_WORSE,
     EngagementResult,
     UnitRole,
+)
+from bot.behaviour_overwrite import (
+    AMove,
+    KeepUnitSafe,
+    PathUnitToTarget,
 )
 from bot.controllers.controller import Controller
 from sc2.units import Point2, Units
@@ -105,7 +105,7 @@ class DefendController(Controller):
                 combat_sim_result in LOSS_MARGINAL_OR_WORSE
                 or (
                     self.ai.townhalls
-                    and defender.position.distance_to_closest(self.ai.townhalls) > 40
+                    and defender.position.distance_to_closest(self.ai.townhalls) > 50
                 )
             ) and nearby_enemies * 2 > nearby_friendlies:
                 maneuver.add(KeepUnitSafe(unit=defender, grid=ground_grid))
