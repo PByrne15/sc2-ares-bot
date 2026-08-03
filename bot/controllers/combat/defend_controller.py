@@ -5,6 +5,7 @@ from ares.behaviors.combat.combat_maneuver import CombatManeuver
 from ares.consts import (
     COMMON_UNIT_IGNORE_TYPES,
     LOSS_MARGINAL_OR_WORSE,
+    VICTORY_DECISIVE_OR_BETTER,
     EngagementResult,
     UnitRole,
 )
@@ -14,7 +15,7 @@ from bot.behaviour_overwrite import (
     PathUnitToTarget,
 )
 from bot.controllers.controller import Controller
-from sc2.units import Point2, Units
+from sc2.units import Point2, Units, UnitTypeId
 
 if TYPE_CHECKING:
     from bot.main import WilldZergBot
@@ -37,7 +38,21 @@ class DefendController(Controller):
 
     async def update(self) -> None:
         ground_grid: np.ndarray = self.ai.mediator.get_ground_grid
+        attackers: Units = self.ai.mediator.get_units_from_role(
+            role=UnitRole.ATTACKING_MAIN_SQUAD
+        )
         defenders: Units = self.ai.mediator.get_units_from_role(role=UnitRole.DEFENDING)
+        unassigned_lings = [
+            l
+            for l in self.ai.units(UnitTypeId.ZERGLING)
+            if l not in (attackers + defenders)
+        ]
+
+        if unassigned_lings:
+            print("FOUND LINGS WITHOUT A ROLE. ASSIGNING THEM TO DEFENDING")
+            self.ai.mediator.batch_assign_role(
+                tags={l.tag for l in unassigned_lings}, role=UnitRole.DEFENDING
+            )
 
         if not self.ai.townhalls:
             self._defend_point = self.ai.start_location
@@ -79,19 +94,24 @@ class DefendController(Controller):
         combat_sim_result: EngagementResult = self.ai.mediator.can_win_fight(
             own_units=defenders, enemy_units=close_units
         )
-        attackers = self.ai.mediator.get_units_from_role(
-            role=UnitRole.ATTACKING_MAIN_SQUAD
-        )
-        if (
-            attackers
-            and defenders.amount >= 10
-            and combat_sim_result
-            in [EngagementResult.LOSS_MARGINAL, EngagementResult.LOSS_CLOSE]
-        ):
-            print("Setting attackers to defend")
-            self.ai.mediator.batch_assign_role(
-                tags={a.tag for a in attackers}, role=UnitRole.DEFENDING
-            )
+        # attackers = self.ai.mediator.get_units_from_role(
+        #     role=UnitRole.ATTACKING_MAIN_SQUAD
+        # )
+        # if (
+        #     attackers
+        #     and defenders.amount >= 10
+        #     and combat_sim_result
+        #     in [EngagementResult.LOSS_MARGINAL, EngagementResult.LOSS_CLOSE]
+        # ):
+        #     all_units = attackers + defenders
+        #     new_combat_sim_result: EngagementResult = self.ai.mediator.can_win_fight(
+        #         own_units=all_units, enemy_units=close_units
+        #     )
+        #     if new_combat_sim_result is VICTORY_DECISIVE_OR_BETTER:
+        #         print("Setting attackers to defend")
+        #         self.ai.mediator.batch_assign_role(
+        #             tags={a.tag for a in attackers}, role=UnitRole.DEFENDING
+        #         )
 
         for defender in defenders:
             maneuver: CombatManeuver = CombatManeuver()

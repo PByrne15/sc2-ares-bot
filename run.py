@@ -92,9 +92,10 @@ def main():
         random_race = random.choice(list(Race))
         # random_race = Race.Terran
         # random_race = Race.Zerg
-        # random_race = Race.Protoss
+        random_race = Race.Protoss
         build = random.choice(list(AIBuild))
         # build = AIBuild.Macro
+        build = AIBuild.Air
 
         # map_list = ["LeyLinesAIE_v3"]
         # map_list = ["TorchesAIE_v4"]
