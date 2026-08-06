@@ -41,7 +41,11 @@ class CreepController(Controller):
             return
 
         for queen in self._creep_queens:
-            queen_unit = self.ai.unit_tag_dict[queen]
+            try:
+                queen_unit = self.ai.unit_tag_dict[queen]
+            except KeyError:
+                self._creep_queens.remove(queen)
+                continue
             queen_unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, self._first_tumor_position)
 
         if self.ai.structures([UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMOR]):
