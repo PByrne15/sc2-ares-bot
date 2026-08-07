@@ -40,7 +40,8 @@ class CreepController(Controller):
         if self._placed_first_tumor:
             return
 
-        for queen in self._creep_queens:
+        queens = self._creep_queens.copy()
+        for queen in queens:
             try:
                 queen_unit = self.ai.unit_tag_dict[queen]
             except KeyError:

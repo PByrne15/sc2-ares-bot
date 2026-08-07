@@ -1,4 +1,3 @@
-import math
 import random
 from typing import TYPE_CHECKING
 
@@ -69,9 +68,8 @@ class AttackController(Controller):
     def ling_micro_interval(self) -> int:
         return max(
             1,
-            math.ceil(
-                self.ai.units(UnitTypeId.ZERGLING).amount / MAX_ZERGLING_COMMANDS
-            ),
+            # math.ceil equivalent that stays in integer domain so is more performant
+            -(self.ai.units(UnitTypeId.ZERGLING).amount // -MAX_ZERGLING_COMMANDS),
         )
 
     async def start(self) -> None:

@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from ares.cache import property_cache_once_per_frame
 from bot.controllers.controller import Controller
 from sc2.units import Point2, Unit
 
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
 
 class ControllerData:
     def __init__(self, ai: "WilldZergBot", controllers: list[Controller]):
+        self.ai = ai
         self.interfaces: dict[str, Callable[...]] = {}
 
         for controller in controllers:
@@ -50,7 +52,7 @@ class ControllerData:
     def attacker_com(self) -> Point2:
         return self.interfaces["attacker_com"]()
 
-    @property
+    @property_cache_once_per_frame
     def ling_micro_interval(self) -> int:
         return self.interfaces["ling_micro_interval"]()
 

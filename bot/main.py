@@ -84,7 +84,7 @@ class WilldZergBot(AresBot):
 
         self.completed_researches: set[UpgradeId] = set()
 
-    def _position_facing_enemy_base(self, point: Point2):
+    def _position_facing_enemy_base(self, point: Point2) -> Point2:
         path = self.mediator.get_map_data_object.pathfind(
             point, self.enemy_start_locations[0], self.mediator.get_ground_grid
         )
@@ -94,13 +94,6 @@ class WilldZergBot(AresBot):
             return path[-1]
 
         return path[10]
-
-    def select_target(self) -> Point2:
-        if self.enemy_structures:
-            return self.enemy_structures.closest_to(
-                self.townhalls.first.position
-            ).position
-        return self.enemy_start_locations[0]
 
     async def on_step(self, iteration: int) -> None:
         await super().on_step(iteration)
@@ -134,6 +127,7 @@ class WilldZergBot(AresBot):
         if ENABLE_PERFORMANCE_PROFILING:
             stats = pstats.Stats(self._profiler)
             stats.sort_stats("cumulative")
+            stats.print_stats(0.1)
             stats.print_stats("controllers")
 
         # async def on_building_construction_complete(self, unit: Unit) -> None:
