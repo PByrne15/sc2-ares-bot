@@ -39,13 +39,10 @@ class DefendController(Controller):
     async def update(self) -> None:
         ground_grid: np.ndarray = self.ai.mediator.get_ground_grid
         defenders: Units = self.ai.mediator.get_units_from_role(role=UnitRole.DEFENDING)
-        iteration_mod = (
-            self.ai.actual_iteration % self.ai.controllers.ling_micro_interval
-        )
+        interval = self.ai.controllers.ling_micro_interval
+        iteration_mod = self.ai.actual_iteration % interval
         defenders_this_iteration = [
-            a
-            for a in defenders
-            if a.tag % self.ai.controllers.ling_micro_interval == iteration_mod
+            a for a in defenders if a.tag % interval == iteration_mod
         ]
 
         if not self.ai.townhalls:

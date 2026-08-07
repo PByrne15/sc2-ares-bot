@@ -1,19 +1,8 @@
-import math
-import random
+import cProfile
+import pstats
 from typing import TYPE_CHECKING
 
 from ares import AresBot
-from ares.behaviors.macro import (
-    AutoSupply,
-    BuildStructure,
-    BuildWorkers,
-    GasBuildingController,
-    MacroPlan,
-    Mining,
-    SpawnController,
-    TechUp,
-    UpgradeController,
-)
 from ares.consts import (
     UnitRole,
 )
@@ -22,11 +11,11 @@ from bot.controllers import (
     CreepController,
     DefendController,
     InjectController,
+    MacroController,
     QueenController,
     ScoutController,
 )
 from bot.controllers.controller_data import ControllerData
-from bot.expansion_controller import FixedExpansionController
 from bot.helpers.map_fixes import apply_map_fixes
 from sc2.data import Result
 from sc2.ids.unit_typeid import UnitTypeId
@@ -38,11 +27,18 @@ if TYPE_CHECKING:
     from bot.controllers.controller import Controller
 
 
+ENABLE_PERFORMANCE_PROFILING = False
+
+
 class WilldZergBot(AresBot):
     """Main bot class that handles the game logic."""
 
     def __init__(self):
         super().__init__()
+
+        self._profiler = cProfile.Profile()
+        if ENABLE_PERFORMANCE_PROFILING:
+            self._profiler.enable()
 
     async def setup_controllers(self) -> None:
         # The order of this list will be the order controllers are run in
@@ -55,6 +51,7 @@ class WilldZergBot(AresBot):
         self.controller_list.append(InjectController(self))
         self.controller_list.append(CreepController(self))
         self.controller_list.append(QueenController(self))
+        self.controller_list.append(MacroController(self))
 
         self.controllers = ControllerData(self, self.controller_list)
 
@@ -121,222 +118,11 @@ class WilldZergBot(AresBot):
         for controller in self.controller_list:
             await controller.update()
 
-        # if not self.actual_iteration % 50:
-        #     print(
-        #         f"Calling _macro with {self.controllers.under_attack_timer=}")
-        await self._macro(bool(self.controllers.under_attack_timer))
-
         if self.controllers.under_attack_timer:
             # if self.combat_controller.under_attack_timer == 100:
             #     print(f"Under attack @ {self.time_formatted}")
             timer = self.controllers.under_attack_timer
             self.controllers.set_under_attack_timer(timer - 1)
-
-    async def _macro(self, under_attack: bool) -> None:
-        macro_plan = MacroPlan()
-        workers_per_gas = 3
-        if (
-            self.pending_or_complete_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL3)
-            and self.pending_or_complete_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL3)
-        ) or (self.minerals < 100 and self.vespene > 300):
-            workers_per_gas = 1
-        self.register_behavior(
-            Mining(mineral_boost=True, workers_per_gas=workers_per_gas)
-        )
-
-        if self.structures(UnitTypeId.SPAWNINGPOOL) and self.supply_workers == 14:
-            self.register_behavior(GasBuildingController(to_count=1))
-
-        if not self.townhalls:
-            return
-
-        hq = self.townhalls.closest_to(self.start_location)
-        if not hq:
-            hq = self.townhalls.first
-
-        if self.minerals > 150:
-            self.register_behavior(
-                BuildStructure(
-                    base_location=self.mediator.get_behind_mineral_positions(
-                        th_pos=hq.position
-                    )[0],
-                    structure_id=UnitTypeId.SPAWNINGPOOL,
-                    to_count=1,
-                )
-            )
-
-        if (
-            self.structures(UnitTypeId.SPAWNINGPOOL)
-            and self.supply_used == 14
-            and (
-                self.units(UnitTypeId.OVERLORD).amount
-                + self.already_pending(UnitTypeId.OVERLORD)
-            )
-            < 2
-            and self.can_afford(UnitTypeId.OVERLORD)
-        ):
-            self.larva.first.build(UnitTypeId.OVERLORD)
-        elif self.structures(UnitTypeId.SPAWNINGPOOL).ready:
-            macro_plan.add(AutoSupply(base_location=self.start_location))
-
-        try:
-            if not self.structures(UnitTypeId.SPAWNINGPOOL):
-                worker_count = 14
-            elif (
-                not self.controllers.attacks and not self.controllers.skip_first_attack
-            ):
-                worker_count = 16
-            elif self.controllers.attacks == 1 or (
-                self.controllers.skip_first_attack and self.controllers.attacks == 0
-            ):
-                worker_count = min(
-                    self.supply_used
-                    - 3 * int(math.log(self.supply_used))
-                    - self.units(UnitTypeId.QUEEN).amount * 2,
-                    self.townhalls.amount * 19,
-                    60,
-                )
-            else:
-                worker_count = min(
-                    self.supply_used - 16 * int(math.log(self.supply_used)), 75
-                )
-        except ValueError:
-            # This is possible if we're taking the log of 0
-            # We have already lost at this point but catch it to avoid crashing
-            worker_count = 14
-
-        # After first attack stop production until we have 3 hatcheries
-        if self.controllers.attacks != 1 or self.townhalls.amount >= 3 or under_attack:
-            if self.supply_workers >= worker_count or under_attack:
-                macro_plan.add(
-                    SpawnController(
-                        army_composition_dict={
-                            UnitTypeId.ZERGLING: {"proportion": 1.0, "priority": 0}
-                        }
-                    )
-                )
-            else:
-                macro_plan.add(BuildWorkers(to_count=worker_count))
-
-        if (
-            self.can_afford(UpgradeId.ZERGLINGMOVEMENTSPEED)
-            and self.already_pending(UnitTypeId.LAIR) == 0.0
-            and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.completed_researches
-        ):
-            sp = self.structures(UnitTypeId.SPAWNINGPOOL).ready
-            if sp:
-                self.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
-
-        if (
-            self.already_pending_upgrade(UpgradeId.ZERGMELEEWEAPONSLEVEL1) > 0.0
-            and self.already_pending_upgrade(UpgradeId.ZERGGROUNDARMORSLEVEL1) > 0.0
-            and self.structures(UnitTypeId.SPAWNINGPOOL).ready
-        ):
-            # await self.chat_send("Upgrading to Lair", True)
-            self.register_behavior(
-                TechUp(base_location=hq.position, desired_tech=UnitTypeId.LAIR)
-            )
-
-        if (
-            self.controllers.attacks
-            and not UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.completed_researches
-            and self.townhalls.amount >= 3
-            and (
-                self.units(UnitTypeId.QUEEN).amount
-                + self.already_pending(UnitTypeId.QUEEN)
-                >= 3
-            )
-        ):
-            self.register_behavior(GasBuildingController(to_count=2))
-            self.register_behavior(
-                BuildStructure(
-                    base_location=hq.position,
-                    structure_id=UnitTypeId.EVOLUTIONCHAMBER,
-                    to_count=2,
-                )
-            )
-
-            researches = [
-                UpgradeId.ZERGMELEEWEAPONSLEVEL1,
-                UpgradeId.ZERGGROUNDARMORSLEVEL1,
-                UpgradeId.ZERGMELEEWEAPONSLEVEL2,
-            ]
-
-            self.register_behavior(UpgradeController(researches, hq.position, False))
-
-            # for evo in self.structures(UnitTypeId.EVOLUTIONCHAMBER).ready:
-            #     if evo.is_idle:
-            #         for research in researches:
-            #             if (self.can_afford(research)
-            #                 and not research in self.completed_researches
-            #                     and self.already_pending_upgrade(research) == 0):
-            #                 await self.chat_send(f"Researching {research}", True)
-            #                 evo.research(research)
-            #                 break
-
-        if UpgradeId.ZERGMELEEWEAPONSLEVEL1 in self.completed_researches:
-            self.register_behavior(
-                TechUp(base_location=hq.position, desired_tech=UnitTypeId.HIVE)
-            )
-            self.register_behavior(
-                BuildStructure(
-                    base_location=hq.position,
-                    structure_id=UnitTypeId.EVOLUTIONCHAMBER,
-                    to_count=2,
-                )
-            )
-            self.register_behavior(GasBuildingController(to_count=2))
-
-            researches = [
-                UpgradeId.ZERGMELEEWEAPONSLEVEL2,
-                UpgradeId.ZERGGROUNDARMORSLEVEL2,
-                UpgradeId.ZERGMELEEWEAPONSLEVEL3,
-                UpgradeId.ZERGGROUNDARMORSLEVEL3,
-                UpgradeId.ZERGLINGATTACKSPEED,
-            ]
-
-            self.register_behavior(UpgradeController(researches, hq.position, False))
-            # for evo in self.structures(UnitTypeId.EVOLUTIONCHAMBER).ready:
-            #     if evo.is_idle:
-            #         for research in researches:
-            #             if (self.can_afford(research)
-            #                 and not research in self.completed_researches
-            #                     and self.already_pending_upgrade(research) == 0):
-            #                 await self.chat_send(f"Researching {research}", True)
-            #                 evo.research(research)
-            #                 break
-
-            # if (UpgradeId.ZERGLINGATTACKSPEED not in self.completed_researches
-            #         and self.already_pending(UnitTypeId.LAIR) == 0.0):
-            #     if sp := self.structures(UnitTypeId.SPAWNINGPOOL):
-            #         sp.ready.first.research(UpgradeId.ZERGLINGATTACKSPEED)
-
-        if self.time < 900:
-            if self.minerals > 1000:
-                max_pending = 10
-            elif self.townhalls.amount == 1:
-                max_pending = 1
-            else:
-                max_pending = 2
-            self.register_behavior(
-                FixedExpansionController(to_count=8, max_pending=max_pending)
-            )
-        else:
-            self.register_behavior(
-                FixedExpansionController(to_count=20, max_pending=10)
-            )
-
-        if self.minerals > 2000:
-            self.register_behavior(
-                BuildStructure(
-                    base_location=random.choice(self.townhalls).position,
-                    structure_id=UnitTypeId.HATCHERY,
-                    to_count=15,
-                    max_on_route=1,
-                )
-            )
-
-        self.register_behavior(macro_plan)
 
     async def on_end(self, game_result: Result) -> None:
         await super().on_end(game_result)
@@ -345,6 +131,10 @@ class WilldZergBot(AresBot):
         Do things here after the game ends
         """
         print("Game ended.")
+        if ENABLE_PERFORMANCE_PROFILING:
+            stats = pstats.Stats(self._profiler)
+            stats.sort_stats("cumulative")
+            stats.print_stats("controllers")
 
         # async def on_building_construction_complete(self, unit: Unit) -> None:
         #     await super(MyBot, self).on_building_construction_complete(unit)

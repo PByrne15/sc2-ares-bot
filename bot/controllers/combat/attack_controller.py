@@ -191,13 +191,10 @@ class AttackController(Controller):
             workers_do_no_damage=True,
         )
 
-        iteration_mod = (
-            self.ai.actual_iteration % self.ai.controllers.ling_micro_interval
-        )
+        interval = self.ai.controllers.ling_micro_interval
+        iteration_mod = self.ai.actual_iteration % interval
         attackers_this_iteration = [
-            a
-            for a in attackers
-            if a.tag % self.ai.controllers.ling_micro_interval == iteration_mod
+            a for a in attackers if a.tag % interval == iteration_mod
         ]
         # print(f"{iteration_mod=}, {self.ai.controllers.ling_micro_interval=}")
         # print(
