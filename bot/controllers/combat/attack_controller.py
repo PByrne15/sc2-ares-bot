@@ -82,9 +82,9 @@ class AttackController(Controller):
         lings = self.ai.mediator.get_own_army_dict[UnitTypeId.ZERGLING]
         _, num_units = cy_find_units_center_mass(lings, 3)
         cancel_attack = (
-            self.ai.enemy_units.filter(
-                lambda u: not u.type_id in self.ai.WORKER_TYPES
-            ).amount
+            self.ai.enemy_units.closer_than(40, self.ai.enemy_start_locations[0])
+            .filter(lambda u: not u.type_id in self.ai.WORKER_TYPES)
+            .amount
             > 1
             or self.ai.enemy_structures.filter(
                 lambda u: u.type_id is UnitTypeId.PHOTONCANNON and u.is_ready
@@ -108,14 +108,18 @@ class AttackController(Controller):
                 print("Cancelling first attack")
 
     async def _timing_attacks(self) -> None:
-        # If we've seen a cannon we assume we won't be able to break in so skip the first timing attack
+        # If we've seen a cannon or a full wall at the top of the ramp
+        # we assume we won't be able to break in so skip the first timing attack
         if (
             self._attacks == 0
             and not self._skip_first_attack
-            and self.ai.enemy_structures.filter(
-                lambda u: u.type_id is UnitTypeId.PHOTONCANNON and u.is_ready
-            ).amount
-            > 0
+            and (
+                self.ai.enemy_structures.filter(
+                    lambda u: u.type_id is UnitTypeId.PHOTONCANNON and u.is_ready
+                ).amount
+                > 0
+                or self.ai.main_ramp_walled_off(self.ai.mediator.get_enemy_ramp)
+            )
         ):
             self._skip_first_attack = True
             print("Scouted a cannon so skipping first timing attack")
@@ -241,6 +245,10 @@ class AttackController(Controller):
     ) -> Point2 | Unit:
         enemy_structures: Units = self.ai.enemy_structures
         current_target = unit.order_target
+
+        # First attack should always go to enemy base
+        if self._attacks == 0:
+            return self.ai.enemy_start_locations[0]
 
         closest_unit = enemy_units.closest_to(unit) if enemy_units else None
 
